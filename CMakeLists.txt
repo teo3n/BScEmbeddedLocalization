@@ -9,8 +9,9 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 
 set(SOURCES main.cpp 
     src/camera_module.h src/camera_module.cpp
-    src/detector.h src/detector.cpp
+    src/features.h
     src/constants.h
+    src/debug_functions.h
 )
 
 project(kandi3dloc)

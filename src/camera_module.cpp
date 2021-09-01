@@ -22,3 +22,10 @@ cv::Mat Camera::get_frame_cv()
 
 	return frame;
 }
+
+
+void Camera::set_resolution(const uint32_t width, const uint32_t height)
+{
+	video_stream->set(cv::CAP_PROP_FRAME_WIDTH, (double)width);
+	video_stream->set(cv::CAP_PROP_FRAME_HEIGHT, (double)height);
+}

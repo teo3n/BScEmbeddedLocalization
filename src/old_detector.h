@@ -27,7 +27,10 @@ static cv::Ptr<cv::ORB> orb_detector;
  * 	@brief detects 2d image features using the ORB 
  * 		features detection algorithm
  */
-std::vector<cv::KeyPoint> detect_features_orb(const cv::Mat& frame);
+// std::vector<cv::KeyPoint> detect_features_orb(const cv::Mat& frame);
 
 
-}
+void do_stuff();
+
+
+};
