@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <iostream>
+#include <memory>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/features2d.hpp>
 #include <opencv2/highgui.hpp>
@@ -20,6 +21,8 @@
 #include "src/camera_module.h"
 #include "src/features.h"
 #include "src/debug_functions.h"
+#include "src/localization_graph.h"
+
 
 using namespace k3d;
 
@@ -34,20 +37,17 @@ int main()
 	// const cv::Mat frame = cam.get_frame_cv();
 
  //    cv::imwrite("../assets/test_img_2.png", frame);
+ //    return 0;
 
-    const cv::Mat frame1 = cv::imread("../assets/test_img_1.png");
-    const cv::Mat frame2 = cv::imread("../assets/test_img_2.png");
+    const std::shared_ptr<cv::Mat> frame1 = std::make_shared<cv::Mat>(cv::imread("../assets/test_img_1.png"));
+    const std::shared_ptr<cv::Mat> frame2 = std::make_shared<cv::Mat>(cv::imread("../assets/test_img_2.png"));
 
-    const auto [keypoints1, desc1] = detect_features_orb(frame1);
-    const auto [keypoints2, desc2] = detect_features_orb(frame2);
+    std::shared_ptr<Frame> f1 = frame_from_rgb(frame1);
+    std::shared_ptr<Frame> f2 = frame_from_rgb(frame2);
 
-    const std::vector<std::pair<uint32_t, uint32_t>> kp_matches = 
-        match_features_bf_crosscheck(desc1, desc2);
-
-    const auto kp_matches_filtered =
-        radius_distance_filter_matches(kp_matches, keypoints1, keypoints2, FEATURE_DIST_MAX_RADIUS);
-
-    DEBUG_visualize_matches(frame1, frame2, kp_matches_filtered, keypoints1, keypoints2);
+    LGraph lgraph;
+    lgraph.localize_frame(f1);
+    lgraph.localize_frame(f2);
 
 	return 0;
 }

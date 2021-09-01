@@ -9,6 +9,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <opencv2/core/base.hpp>
 #include <opencv2/core/types.hpp>
 #include <tuple>
@@ -22,6 +23,11 @@
 
 #include "constants.h"
 
+/**
+ * 	TODO: test with FLANN based matching 
+ * 		https://docs.opencv.org/master/dc/dc3/tutorial_py_matcher.html
+ */
+
 
 namespace k3d
 {
@@ -32,13 +38,16 @@ static cv::Ptr<cv::ORB> orb_detector;
 // use a brute force matcher with cross_check enabled for best results
 static cv::BFMatcher bf_matcher (cv::NORM_HAMMING, true);
 
+static cv::FlannBasedMatcher flann_matcher 
+	(cv::makePtr<cv::flann::LshIndexParams>(FLANN_TABLE_NUMBER, FLANN_KEY_SIZE, FLANN_MULTI_PROBE_LEVEL));
+
 
 /**
  * 	@brief detects 2d image features using the ORB 
  * 		features detection algorithm
  * 	@return [<detected keypoints, computed descriptors>]
  */
-inline std::tuple<std::vector<cv::KeyPoint>, cv::Mat> detect_features_orb(const cv::Mat& frame)
+inline std::tuple<std::vector<cv::KeyPoint>, cv::Mat> detect_features_orb(const std::shared_ptr<cv::Mat> frame)
 {
 	std::vector<cv::KeyPoint> kp_features;
 
@@ -49,7 +58,7 @@ inline std::tuple<std::vector<cv::KeyPoint>, cv::Mat> detect_features_orb(const 
 	}
 
 	cv::Mat descriptors;
-	orb_detector->detectAndCompute(frame, cv::noArray(), kp_features, descriptors);	
+	orb_detector->detectAndCompute(*frame, cv::noArray(), kp_features, descriptors);	
 
 	return std::make_tuple(kp_features, descriptors);
 }
@@ -83,7 +92,32 @@ inline std::vector<std::pair<uint32_t, uint32_t>> match_features_bf_crosscheck(c
 }
 
 /**
- *	@brief filters the feature matches by radial distance
+ * 	@brief matches 2 descriptors using a flann based matcher.
+ * 		Faster (in theory), and especially with larger feature counts.
+ */
+inline std::vector<std::pair<uint32_t, uint32_t>> 
+	match_features_flann(const cv::Mat& desc1, const cv::Mat& desc2, const float distance_ratio)
+{
+	std::vector<std::pair<uint32_t, uint32_t>> feature_matches;
+	std::vector<std::vector<cv::DMatch>> knn_matches;
+
+	flann_matcher.knnMatch(desc1, desc2, knn_matches, 2);
+	feature_matches.reserve(knn_matches.size());
+
+	for (uint32_t ii = 0; ii < knn_matches.size(); ii++)
+	{
+		// do a distance check
+		if (knn_matches[ii][0].distance < distance_ratio * knn_matches[ii][1].distance)
+			feature_matches.push_back(std::make_pair(knn_matches[ii][0].queryIdx, knn_matches[ii][0].trainIdx));
+	}
+
+	feature_matches.shrink_to_fit();
+	return feature_matches;
+}
+
+/**
+ *	@brief filters the feature matches by radial distance. 
+ * 		Only usable with brute-force matcher.
  * 	@return the filtered matches
  */ 
 inline std::vector<std::pair<uint32_t, uint32_t>> 
@@ -111,5 +145,6 @@ inline std::vector<std::pair<uint32_t, uint32_t>>
 	matches_filtered.shrink_to_fit();
 	return matches_filtered;
 }
+
 
 };

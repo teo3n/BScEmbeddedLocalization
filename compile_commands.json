@@ -1,17 +1,17 @@
 [
 {
   "directory": "/home/teo/Documents/git/kandi3d/build",
-  "command": "/usr/bin/c++ -DUNIX -isystem /usr/include/opencv4  -fopenmp   -O3 -fopenmp -Wno-deprecated-declarations -Wno-unused-result -std=gnu++17 -o CMakeFiles/kandi3dloc.dir/main.cpp.o -c /home/teo/Documents/git/kandi3d/main.cpp",
+  "command": "/usr/bin/c++ -DUNIX -isystem /usr/include/opencv4 -isystem /usr/include/eigen3  -fopenmp   -O3 -fopenmp -Wno-deprecated-declarations -Wno-unused-result -std=gnu++17 -o CMakeFiles/kandi3dloc.dir/main.cpp.o -c /home/teo/Documents/git/kandi3d/main.cpp",
   "file": "/home/teo/Documents/git/kandi3d/main.cpp"
 },
 {
   "directory": "/home/teo/Documents/git/kandi3d/build",
-  "command": "/usr/bin/c++ -DUNIX -isystem /usr/include/opencv4  -fopenmp   -O3 -fopenmp -Wno-deprecated-declarations -Wno-unused-result -std=gnu++17 -o CMakeFiles/kandi3dloc.dir/src/camera_module.cpp.o -c /home/teo/Documents/git/kandi3d/src/camera_module.cpp",
+  "command": "/usr/bin/c++ -DUNIX -isystem /usr/include/opencv4 -isystem /usr/include/eigen3  -fopenmp   -O3 -fopenmp -Wno-deprecated-declarations -Wno-unused-result -std=gnu++17 -o CMakeFiles/kandi3dloc.dir/src/camera_module.cpp.o -c /home/teo/Documents/git/kandi3d/src/camera_module.cpp",
   "file": "/home/teo/Documents/git/kandi3d/src/camera_module.cpp"
 },
 {
   "directory": "/home/teo/Documents/git/kandi3d/build",
-  "command": "/usr/bin/c++ -DUNIX -isystem /usr/include/opencv4  -fopenmp   -O3 -fopenmp -Wno-deprecated-declarations -Wno-unused-result -std=gnu++17 -o CMakeFiles/kandi3dloc.dir/src/detector.cpp.o -c /home/teo/Documents/git/kandi3d/src/detector.cpp",
-  "file": "/home/teo/Documents/git/kandi3d/src/detector.cpp"
+  "command": "/usr/bin/c++ -DUNIX -isystem /usr/include/opencv4 -isystem /usr/include/eigen3  -fopenmp   -O3 -fopenmp -Wno-deprecated-declarations -Wno-unused-result -std=gnu++17 -o CMakeFiles/kandi3dloc.dir/src/localization_graph.cpp.o -c /home/teo/Documents/git/kandi3d/src/localization_graph.cpp",
+  "file": "/home/teo/Documents/git/kandi3d/src/localization_graph.cpp"
 }
 ]

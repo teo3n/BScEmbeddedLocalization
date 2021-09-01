@@ -9,14 +9,16 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 
 set(SOURCES main.cpp 
     src/camera_module.h src/camera_module.cpp
+    src/localization_graph.h src/localization_graph.cpp
     src/features.h
+    src/frame.h
     src/constants.h
     src/debug_functions.h
 )
 
 project(kandi3dloc)
 
-# find_package (Eigen3 3.3 REQUIRED NO_MODULE)
+find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}" )
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp") 
@@ -38,11 +40,11 @@ message(STATUS "    version: ${OpenCV_VERSION}")
 message(STATUS "    libraries: ${OpenCV_LIBS}")
 message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
 
-# include_directories( ${EIGEN_INCLUDE_DIR})
+include_directories( ${EIGEN_INCLUDE_DIR})
 
 add_executable(kandi3dloc ${SOURCES})
 
 target_link_libraries(kandi3dloc 
                         ${OpenCV_LIBS}
-#                        Eigen3::Eigen
+                        Eigen3::Eigen
 )
