@@ -23,11 +23,6 @@
 
 #include "constants.h"
 
-/**
- * 	TODO: test with FLANN based matching 
- * 		https://docs.opencv.org/master/dc/dc3/tutorial_py_matcher.html
- */
-
 
 namespace k3d
 {

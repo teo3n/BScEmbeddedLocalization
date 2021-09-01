@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <memory>
+#include <vector>
 
 #include "frame.h"
 #include "constants.h"
@@ -34,6 +35,7 @@ public:
 
 private:
 
+    std::vector<std::shared_ptr<Frame>> frames;
 
 };
 

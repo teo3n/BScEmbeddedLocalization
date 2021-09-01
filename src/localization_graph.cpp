@@ -12,4 +12,5 @@ void LGraph::localize_frame(std::shared_ptr<Frame> frame)
     // DEBUG_visualize_matches(frame1, frame2, kp_matches, keypoints1, keypoints2);
 
 
+	this->frames.push_back(frame);
 }

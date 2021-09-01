@@ -26,6 +26,11 @@
 
 using namespace k3d;
 
+/**
+ *  TODO: 
+ *      implement frame localization
+ */
+
 
 int main()
 {
