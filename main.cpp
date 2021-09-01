@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include "src/camera_module.h"
+#include "src/detector.h"
 
 using namespace k3d;
 
@@ -21,7 +22,7 @@ int main()
 	Camera cam(0);
 
 	const cv::Mat frame = cam.get_frame_cv();
-
+    detect_features_orb(frame);
 
 
 	return 0;
