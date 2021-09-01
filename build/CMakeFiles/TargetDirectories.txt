@@ -1,0 +1,3 @@
+/home/teo/Documents/git/kandi3d/build/CMakeFiles/rebuild_cache.dir
+/home/teo/Documents/git/kandi3d/build/CMakeFiles/edit_cache.dir
+/home/teo/Documents/git/kandi3d/build/CMakeFiles/kandi3dloc.dir
