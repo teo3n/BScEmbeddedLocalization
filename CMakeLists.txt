@@ -14,6 +14,7 @@ set(SOURCES main.cpp
     src/frame.h
     src/constants.h
     src/debug_functions.h
+    src/utilities.h
 )
 
 project(kandi3dloc)

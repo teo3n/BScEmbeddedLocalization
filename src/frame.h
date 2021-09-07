@@ -17,6 +17,7 @@
 #include <opencv2/core.hpp>
 
 #include "features.h"
+#include "constants.h"
 
 namespace k3d
 {
@@ -32,11 +33,16 @@ struct Frame
 
 	Eigen::Vector3d position;
 	Eigen::Matrix3d rotation;
+
+	Eigen::Matrix4d transformation;
+	Mat34 projection;
+
+	cv::Mat intr;
 };
 
-inline std::shared_ptr<Frame> frame_from_rgb(const std::shared_ptr<cv::Mat> rgb)
+inline std::shared_ptr<Frame> frame_from_rgb(const std::shared_ptr<cv::Mat> rgb, const cv::Mat& intr)
 {
-	const auto [keypoints, descriptors] = detect_features_orb(rgb);
+	const auto [keypoints, descriptors] = features::detect_features_orb(rgb);
 
 	return std::make_shared<Frame>(
 		Frame {
@@ -44,7 +50,10 @@ inline std::shared_ptr<Frame> frame_from_rgb(const std::shared_ptr<cv::Mat> rgb)
 			keypoints,
 			descriptors,
 			Eigen::Vector3d::Zero(),
-			Eigen::Matrix3d::Identity()
+			Eigen::Matrix3d::Identity(),
+			Eigen::Matrix4d::Identity(),
+			Mat34::Identity(),
+			intr
 		});
 }
 

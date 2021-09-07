@@ -24,7 +24,7 @@
 #include "constants.h"
 
 
-namespace k3d
+namespace k3d::features
 {
 
 // no reason to use unnecessary classes, just define as static
