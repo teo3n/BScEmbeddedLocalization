@@ -6,6 +6,7 @@
 namespace k3d
 {
 
+#define LOG
 
 typedef Eigen::Matrix<double, 3, 4> Mat34;
 

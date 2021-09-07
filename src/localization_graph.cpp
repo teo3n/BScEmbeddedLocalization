@@ -77,8 +77,10 @@ std::pair<Eigen::Vector3d, Eigen::Matrix3d> LGraph::localize_frame_essential(
     frame->transformation = T_P.first;
     frame->projection = T_P.second;
 
+    #ifdef LOG
     const  Eigen::AngleAxisd ax(dR);
-    std::cout << ax.angle() * (180. / 3.1415) << "\n";
+    std::cout << "essential angle: " << ax.angle() * (180. / 3.1415) << "\n";
+    #endif
 
     return std::make_pair(position, rotation);
 }
