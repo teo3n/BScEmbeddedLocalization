@@ -6,6 +6,7 @@
 #include <memory>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/types.hpp>
+#include <stdexcept>
 #include <utility>
 
 using namespace k3d;
@@ -185,7 +186,6 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
 
     std::vector<int> inliers;
     cv::solvePnPRansac(lm_points, feature_points, frame->params.intr, frame->params.distortion, rcv, tcv, true, 1000, 4.0, 0.987, inliers);
-
     cv::Rodrigues(rcv, rcv_mat);
 
     Eigen::Matrix3d dR;
@@ -202,8 +202,10 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
     cv::eigen2cv(T_P.second, frame->projection_cv);
 
     // update matched landmarks using lookup
-
     update_landmarks(frame, feature_ids, lm_ids);
+
+    // new landmarks from far enough frames (motion)
+    throw std::runtime_error("not implemented");
 }
 
 void LGraph::visualize_camera_tracks() const
