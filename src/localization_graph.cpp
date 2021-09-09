@@ -1,7 +1,15 @@
 #include "localization_graph.h"
+#include <opencv2/calib3d.hpp>
+#include <opencv2/core/mat.hpp>
+#include <opencv2/highgui.hpp>
 
 using namespace k3d;
 
+LGraph::LGraph()
+{
+    // double identity_vec[3*3] = { 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 };
+    // identity_mat = utilities::restrucure_mat<double>(identity_vec, 3, 3);
+}
 
 void LGraph::localize_frame(std::shared_ptr<Frame> frame)
 {
@@ -40,8 +48,10 @@ std::pair<Eigen::Vector3d, Eigen::Matrix3d> LGraph::localize_frame_essential(
     Eigen::Vector3d position;
     Eigen::Matrix3d rotation;
 
-    const std::vector<std::pair<uint32_t, uint32_t>> matches = features::match_features_flann(
+    std::vector<std::pair<uint32_t, uint32_t>> matches = features::match_features_flann(
         ref_frame->descriptors, frame->descriptors, KNN_DISTANCE_RATIO);
+    matches = features::radius_distance_filter_matches(matches, ref_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
+
 
     if (matches.size() < MIN_MATCH_FEATURE_COUNT)
         throw std::runtime_error("not enough feature matches: " + std::to_string(matches.size()));
@@ -58,12 +68,14 @@ std::pair<Eigen::Vector3d, Eigen::Matrix3d> LGraph::localize_frame_essential(
         x1.push_back(ref_frame->keypoints[m.first].pt);
         x2.push_back(frame->keypoints[m.second].pt);
     }
+    cv::undistortPoints(x1, x1, frame->params.intr, frame->params.distortion, cv::noArray(), frame->params.intr);
+    cv::undistortPoints(x2, x2, frame->params.intr, frame->params.distortion, cv::noArray(), frame->params.intr);
 
     cv::Mat mask;
-    const cv::Mat essential = cv::findEssentialMat(x1, x2, frame->intr, cv::RANSAC, 0.999, 0.11, mask);
+    const cv::Mat essential = cv::findEssentialMat(x1, x2, frame->params.intr, cv::RANSAC, 0.999, 0.11, mask);
 
     cv::Mat local_R, local_t;
-    cv::recoverPose(essential, x1, x2, frame->intr, local_R, local_t, mask);
+    cv::recoverPose(essential, x1, x2, frame->params.intr, local_R, local_t, mask);
 
     Eigen::Matrix3d dR;
     Eigen::Vector3d dt;
@@ -73,7 +85,7 @@ std::pair<Eigen::Vector3d, Eigen::Matrix3d> LGraph::localize_frame_essential(
     frame->position = dt;
     frame->rotation = dR;
 
-    const auto T_P = utilities::TP_from_Rt(dR, dt, frame->intr);
+    const auto T_P = utilities::TP_from_Rt(dR, dt, frame->params.intr);
     frame->transformation = T_P.first;
     frame->projection = T_P.second;
 

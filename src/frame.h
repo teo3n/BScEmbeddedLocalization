@@ -23,6 +23,16 @@ namespace k3d
 {
 
 /**
+ * 	@brief Holds camera parameters
+ */
+struct CameraParams
+{
+	cv::Mat intr;
+	cv::Mat distortion;
+};
+
+
+/**
  * 	@brief Represents a frame in 3D space
  */
 struct Frame
@@ -37,10 +47,10 @@ struct Frame
 	Eigen::Matrix4d transformation;
 	Mat34 projection;
 
-	cv::Mat intr;
+	CameraParams params;
 };
 
-inline std::shared_ptr<Frame> frame_from_rgb(const std::shared_ptr<cv::Mat> rgb, const cv::Mat& intr)
+inline std::shared_ptr<Frame> frame_from_rgb(const std::shared_ptr<cv::Mat> rgb, const cv::Mat& intr, const cv::Mat& distortion)
 {
 	const auto [keypoints, descriptors] = features::detect_features_orb(rgb);
 
@@ -53,7 +63,7 @@ inline std::shared_ptr<Frame> frame_from_rgb(const std::shared_ptr<cv::Mat> rgb,
 			Eigen::Matrix3d::Identity(),
 			Eigen::Matrix4d::Identity(),
 			Mat34::Identity(),
-			intr
+			CameraParams { intr, distortion }
 		});
 }
 

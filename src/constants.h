@@ -18,7 +18,7 @@ static const uint32_t ORB_FEATURE_COUNT = 10000;
 static const float MATCH_MAX_DISTANCE = 300.f;
 
 // specify by how many pixels can a pixel's position differ
-static const float FEATURE_DIST_MAX_RADIUS = 100.f;
+static const float FEATURE_DIST_MAX_RADIUS = 250.f;
 
 static const float KNN_DISTANCE_RATIO = 0.7f;
 

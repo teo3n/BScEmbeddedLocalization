@@ -32,7 +32,7 @@ class LGraph
 
 public:
 
-    LGraph() {};
+    LGraph();
     ~LGraph() {};
 
     /**
@@ -52,7 +52,6 @@ private:
         const std::shared_ptr<Frame> ref_frame, std::shared_ptr<Frame> frame);
 
     std::vector<std::shared_ptr<Frame>> frames;
-
 };
 
 };

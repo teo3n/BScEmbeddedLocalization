@@ -37,36 +37,40 @@ int main()
 {
    std::cout << "begin\n";
 
-   // Camera cam(4);
+   // Camera cam(0);
    // cam.set_resolution(1280, 720);
    // for (int i = 0; i < 60; i++)
    //    const cv::Mat frame = cam.get_frame_cv();
 
    // const cv::Mat frame = cam.get_frame_cv();
 
-   // cv::imwrite("../assets/test_img_2.png", frame);
+   // cv::imwrite("../assets/test_img_3.png", frame);
    // return 0;
 
 
    const std::shared_ptr<cv::Mat> frame1 = std::make_shared<cv::Mat>(cv::imread("../assets/test_img_1.png"));
    const std::shared_ptr<cv::Mat> frame2 = std::make_shared<cv::Mat>(cv::imread("../assets/test_img_2.png"));
+   const std::shared_ptr<cv::Mat> frame3 = std::make_shared<cv::Mat>(cv::imread("../assets/test_img_3.png"));
 
    // camera intrinsics
    double intr_vec[3*3] = {
-      779.52117063, 0.0, 602.92592355,
-      0.0, 779.18371952, 372.3418880,
+      775.34573964, 0.0, 618.4213988,
+      0.0, 774.38086624, 357.46060439,
       0.0, 0.0, 1.0};
    const cv::Mat intr = utilities::restrucure_mat<double>(intr_vec, 3, 3);
 
    // distortion coefficients
-   // 
+   double dist_vec[5] = { 0.09075014, -0.23913447, 0.00068211, -0.00097758,  0.11341968 };
+   const cv::Mat dist = utilities::restrucure_mat<double>(dist_vec, 1, 5);
 
-   std::shared_ptr<Frame> f1 = frame_from_rgb(frame1, intr);
-   std::shared_ptr<Frame> f2 = frame_from_rgb(frame2, intr);
+   std::shared_ptr<Frame> f1 = frame_from_rgb(frame1, intr, dist);
+   std::shared_ptr<Frame> f2 = frame_from_rgb(frame2, intr, dist);
+   std::shared_ptr<Frame> f3 = frame_from_rgb(frame2, intr, dist);
 
    LGraph lgraph;
    lgraph.localize_frame(f1);
    lgraph.localize_frame(f2);
+   lgraph.localize_frame(f3);
 
    return 0;
 }
