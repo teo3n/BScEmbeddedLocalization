@@ -65,12 +65,14 @@ int main()
 
    std::shared_ptr<Frame> f1 = frame_from_rgb(frame1, intr, dist);
    std::shared_ptr<Frame> f2 = frame_from_rgb(frame2, intr, dist);
-   std::shared_ptr<Frame> f3 = frame_from_rgb(frame2, intr, dist);
+   std::shared_ptr<Frame> f3 = frame_from_rgb(frame3, intr, dist);
 
    LGraph lgraph;
    lgraph.localize_frame(f1);
    lgraph.localize_frame(f2);
    lgraph.localize_frame(f3);
+
+   lgraph.visualize_camera_tracks();
 
    return 0;
 }

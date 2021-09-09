@@ -11,7 +11,9 @@
 #include <cstdint>
 #include <memory>
 #include <opencv2/core/base.hpp>
+#include <opencv2/core/hal/interface.h>
 #include <opencv2/core/types.hpp>
+#include <sys/types.h>
 #include <tuple>
 #include <iostream>
 #include <utility>
@@ -139,6 +141,12 @@ inline std::vector<std::pair<uint32_t, uint32_t>>
 
 	matches_filtered.shrink_to_fit();
 	return matches_filtered;
+}
+
+inline cv::Mat get_individual_descriptor(const cv::Mat& desc, const uint32_t id)
+{
+	const cv::Mat idesc = desc.row(id);
+    return idesc;
 }
 
 

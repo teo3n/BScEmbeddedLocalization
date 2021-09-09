@@ -1,7 +1,12 @@
 #include "localization_graph.h"
+#include <Open3D/Geometry/Geometry.h>
+#include <Open3D/Geometry/TriangleMesh.h>
+#include <Open3D/Visualization/Utility/DrawGeometry.h>
+#include <cstdint>
+#include <memory>
 #include <opencv2/calib3d.hpp>
-#include <opencv2/core/mat.hpp>
-#include <opencv2/highgui.hpp>
+#include <opencv2/core/types.hpp>
+#include <utility>
 
 using namespace k3d;
 
@@ -32,22 +37,16 @@ void LGraph::localize_frame(std::shared_ptr<Frame> frame)
 
     // localize using essential matrix decomposition
     else if (frames.size() == 2)
-    {
-        const auto pos_rot = localize_frame_essential(frames[0], frame);
-        frame->position = pos_rot.first;
-        frame->rotation = pos_rot.second;
-    }
+        localize_frame_essential(frames[0], frame);
 
-    // localize normally
+    // localize using PnP
+    else
+        localize_frame_pnp(frames[frames.size() - 2], frame);
 }
 
 
-std::pair<Eigen::Vector3d, Eigen::Matrix3d> LGraph::localize_frame_essential(
-        const std::shared_ptr<Frame> ref_frame, std::shared_ptr<Frame> frame)
+void LGraph::localize_frame_essential(const std::shared_ptr<Frame> ref_frame, std::shared_ptr<Frame> frame)
 {
-    Eigen::Vector3d position;
-    Eigen::Matrix3d rotation;
-
     std::vector<std::pair<uint32_t, uint32_t>> matches = features::match_features_flann(
         ref_frame->descriptors, frame->descriptors, KNN_DISTANCE_RATIO);
     matches = features::radius_distance_filter_matches(matches, ref_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
@@ -56,7 +55,7 @@ std::pair<Eigen::Vector3d, Eigen::Matrix3d> LGraph::localize_frame_essential(
     if (matches.size() < MIN_MATCH_FEATURE_COUNT)
         throw std::runtime_error("not enough feature matches: " + std::to_string(matches.size()));
 
-    DEBUG_visualize_matches(*ref_frame->rgb, *frame->rgb, matches, ref_frame->keypoints, frame->keypoints);
+    // DEBUG_visualize_matches(*ref_frame->rgb, *frame->rgb, matches, ref_frame->keypoints, frame->keypoints);
 
     std::vector<cv::Point2f> x1, x2;
     x1.reserve(matches.size());
@@ -88,11 +87,139 @@ std::pair<Eigen::Vector3d, Eigen::Matrix3d> LGraph::localize_frame_essential(
     const auto T_P = utilities::TP_from_Rt(dR, dt, frame->params.intr);
     frame->transformation = T_P.first;
     frame->projection = T_P.second;
+    cv::eigen2cv(T_P.second, frame->projection_cv);
 
     #ifdef LOG
     const  Eigen::AngleAxisd ax(dR);
     std::cout << "essential angle: " << ax.angle() * (180. / 3.1415) << "\n";
     #endif
 
-    return std::make_pair(position, rotation);
+    create_landmarks_from_matches(ref_frame, frame, matches);
+}
+
+void LGraph::create_landmarks_from_matches(const std::shared_ptr<Frame> ref_frame, 
+        const std::shared_ptr<Frame> frame, const std::vector<std::pair<uint32_t, uint32_t>>& matches)
+{
+    for (auto& m : matches)
+    {
+        Landmark lm;
+
+        lm.descriptors.push_back(features::get_individual_descriptor(ref_frame->descriptors, m.first));
+        lm.descriptors.push_back(features::get_individual_descriptor(frame->descriptors, m.second));
+
+        const std::vector<cv::Point2f> x1 = { ref_frame->keypoints[m.first].pt };
+        const std::vector<cv::Point2f> x2 = { frame->keypoints[m.second].pt };
+
+        cv::Mat p4d;
+        cv::triangulatePoints(ref_frame->projection_cv, frame->projection_cv, x1, x2, p4d);
+        lm.location = cv::Point3f(
+                    p4d.at<float>(0, 0) / p4d.at<float>(3, 0),
+                    p4d.at<float>(1, 0) / p4d.at<float>(3, 0),
+                    p4d.at<float>(2, 0) / p4d.at<float>(3, 0));
+
+        landmarks.push_back(lm);
+
+        // <feature index, landmark index>
+        frame->feature_landmark_lookup.push_back(std::make_pair(m.second, landmarks.size() - 1));
+    }
+}
+
+void LGraph::update_landmarks(const std::shared_ptr<Frame> frame, 
+        std::vector<uint32_t>& feature_ids, std::vector<uint32_t>& landmark_ids)
+{
+    for (int ii = 0; ii < feature_ids.size(); ii++)
+    {
+        Landmark& lm = landmarks[landmark_ids[ii]];
+
+        frame->feature_landmark_lookup.push_back(std::make_pair(feature_ids[ii], landmark_ids[ii]));
+        lm.descriptors.push_back(features::get_individual_descriptor(frame->descriptors, feature_ids[ii]));
+    }
+}
+
+void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::shared_ptr<Frame> frame)
+{
+    /**
+     *  - match against previous frame and find landmarks using lookup
+     *  - PnP
+     *  - new landmarks?
+     */
+
+    std::vector<std::pair<uint32_t, uint32_t>> matches = 
+        features::match_features_flann(prev_frame->descriptors, frame->descriptors, KNN_DISTANCE_RATIO);
+    matches = features::radius_distance_filter_matches(matches, prev_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
+
+    // DEBUG_visualize_matches(*prev_frame->rgb, *frame->rgb, matches, prev_frame->keypoints, frame->keypoints);
+
+    // find landmark points for PnP
+    std::vector<cv::Point3f> lm_points;
+    std::vector<uint32_t> lm_ids;
+    std::vector<cv::Point2f> feature_points;
+    std::vector<uint32_t> feature_ids;
+
+    // collect landmark point ids and current frame feature point ids
+    // find prev-current matched form prev-landmarks
+    for (const auto& flm : prev_frame->feature_landmark_lookup)
+    {
+        for (const auto& match : matches)
+        {
+            // feature match was found in landmark lookup
+            if (match.first == flm.first)
+            {
+                feature_points.push_back(frame->keypoints[match.second].pt);
+                feature_ids.push_back(match.second);
+
+                lm_points.push_back(landmarks[flm.second].location);
+                lm_ids.push_back(flm.second);
+            }
+        }
+    }
+
+    /**
+     *  TODO:
+     *      if not enough found, use landmark descriptors
+     */
+
+    cv::Mat rcv, tcv, rcv_mat;
+    cv::eigen2cv(prev_frame->position, tcv);
+    cv::eigen2cv(prev_frame->rotation, rcv);
+
+    std::vector<int> inliers;
+    cv::solvePnPRansac(lm_points, feature_points, frame->params.intr, frame->params.distortion, rcv, tcv, true, 1000, 4.0, 0.987, inliers);
+
+    cv::Rodrigues(rcv, rcv_mat);
+
+    Eigen::Matrix3d dR;
+    Eigen::Vector3d dt;
+    cv::cv2eigen(rcv_mat, dR);
+    cv::cv2eigen(tcv, dt);
+
+    frame->position = dt;
+    frame->rotation = dR;
+
+    const auto T_P = utilities::TP_from_Rt(dR, dt, frame->params.intr);
+    frame->transformation = T_P.first;
+    frame->projection = T_P.second;
+    cv::eigen2cv(T_P.second, frame->projection_cv);
+
+    // update matched landmarks using lookup
+
+    update_landmarks(frame, feature_ids, lm_ids);
+}
+
+void LGraph::visualize_camera_tracks() const
+{
+    std::vector<std::shared_ptr<const open3d::geometry::Geometry>> debug_cameras;
+
+    for (int ii = 0; ii < frames.size(); ii++)
+    {
+        std::cout << "frame " << ii << ": " << frames[ii]->position.transpose() << "\n";
+
+        std::shared_ptr<open3d::geometry::TriangleMesh> camera_mesh = std::make_shared<open3d::geometry::TriangleMesh>(open3d::geometry::TriangleMesh());
+        open3d::io::ReadTriangleMeshFromOBJ("../assets/debug_camera_mesh.obj", *camera_mesh, false);
+
+        camera_mesh->Transform(frames[ii]->transformation);
+        debug_cameras.push_back(camera_mesh);
+    }
+
+    open3d::visualization::DrawGeometries(debug_cameras);
 }
