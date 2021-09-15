@@ -205,7 +205,7 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
     update_landmarks(frame, feature_ids, lm_ids);
 
     // new landmarks from far enough frames (motion)
-    throw std::runtime_error("not implemented");
+    // throw std::runtime_error("not implemented");
 }
 
 void LGraph::visualize_camera_tracks() const
