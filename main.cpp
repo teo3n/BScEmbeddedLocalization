@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <iostream>
 #include <memory>
+#include <exception>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/features2d.hpp>
 #include <opencv2/highgui.hpp>
@@ -74,7 +75,7 @@ int main()
    LGraph lgraph;
    lgraph.localize_frame(f1);
 
-   for (int ii = 35; ii < 100; ii++)
+   for (int ii = 35; ii < 200; ii++)
    {
       const std::shared_ptr<cv::Mat> frame = std::make_shared<cv::Mat>(cv::imread("../assets/rock/rgb_" + std::to_string(ii) + ".png"));
       std::shared_ptr<Frame> ff = frame_from_rgb(frame, intr, dist);
@@ -83,13 +84,14 @@ int main()
       {
          lgraph.localize_frame(ff);
       }
-      catch (...)
+      catch (std::exception& e)
       {
+         std::cout << "exception: " << e.what() << "\n";
          break;
       }
    }
 
-   lgraph.visualize_camera_tracks();
+   lgraph.visualize_camera_tracks(true);
 
    return 0;
 }

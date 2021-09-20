@@ -54,7 +54,7 @@ public:
     /**
      *  @brief Visualizes the camera tracks
      */
-    void visualize_camera_tracks() const;
+    void visualize_camera_tracks(const bool visualize_landmarks = false) const;
 
 private:
 
@@ -83,10 +83,23 @@ private:
     void update_landmarks(const std::shared_ptr<Frame> frame, 
         std::vector<uint32_t>& feature_ids, std::vector<uint32_t>& landmark_ids);
 
+    /**
+     *  @brief Creates new landmarks from previously unmatched features
+     *  @param feature_ids, the previously matched features
+     */
+    void new_landmarks_from_matched(const std::shared_ptr<Frame> ref_frame,
+        const std::shared_ptr<Frame> frame);
+
+    /**
+     *  @brief Traverses the alredy localized frames backwards, and finds the first
+     *      one with significant enough movement to be valid for triangulation
+     */
+    std::shared_ptr<Frame> find_triangulatable_movement_frame(const std::shared_ptr<Frame> frame);
 
     std::vector<std::shared_ptr<Frame>> frames;
 
     std::vector<Landmark> landmarks;
+    
 };
 
 };

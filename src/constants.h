@@ -30,5 +30,16 @@ static const uint32_t FLANN_MULTI_PROBE_LEVEL = 1;	// 2
 // the minimum amount of feature matches for good quality RANSAC
 static const uint32_t MIN_MATCH_FEATURE_COUNT = 30;
 
+// the minimum amount of movement, which will be considered
+// good enough to be triangulated
+static const double TRIANGULATE_DIST_DIFF_MAGNITUDE = 1.0;
+
+// when the number of feature-landmark matches, 
+// find new landmarks
+static const uint32_t MIN_FEATURE_LANDMARK_COUNT_NEW = 200;
+
+// by how much can the new frame differ in position 
+// compared to the previous frame
+static const double FRAME_POSITION_DISTANCE_DEVIATION = 1.0;
 
 }

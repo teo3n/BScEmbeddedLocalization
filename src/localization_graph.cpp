@@ -1,8 +1,11 @@
 #include "localization_graph.h"
 #include <Open3D/Geometry/Geometry.h>
+#include <Open3D/Geometry/PointCloud.h>
 #include <Open3D/Geometry/TriangleMesh.h>
 #include <Open3D/Visualization/Utility/DrawGeometry.h>
+#include <algorithm>
 #include <cstdint>
+#include <fmt/format.h>
 #include <memory>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/types.hpp>
@@ -175,11 +178,6 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
         }
     }
 
-    /**
-     *  TODO:
-     *      if not enough found, use landmark descriptors
-     */
-
     cv::Mat rcv, tcv, rcv_mat;
     cv::eigen2cv(prev_frame->position, tcv);
     cv::eigen2cv(prev_frame->rotation, rcv);
@@ -201,14 +199,78 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
     frame->projection = T_P.second;
     cv::eigen2cv(T_P.second, frame->projection_cv);
 
+    // reject the frame if it has too high location magnitude
+    if (frame->position.norm() - prev_frame->position.norm() > FRAME_POSITION_DISTANCE_DEVIATION)
+    {
+        std::cout << "frame rejected for having position of " << frame->position.transpose() << 
+            " compared to " << prev_frame->position.transpose() << "\n";
+
+        frames.pop_back();
+        return;
+    }
+
+    /**
+     * TODO:
+     *      fix camera positions and pointcloud positions being wack
+     */
+
     // update matched landmarks using lookup
     update_landmarks(frame, feature_ids, lm_ids);
 
-    // new landmarks from far enough frames (motion)
-    // throw std::runtime_error("not implemented");
+    if (feature_points.size() <= MIN_FEATURE_LANDMARK_COUNT_NEW)
+    {
+        const auto rframe = find_triangulatable_movement_frame(frame);
+        if (rframe)
+            new_landmarks_from_matched(rframe, frame);
+    }
 }
 
-void LGraph::visualize_camera_tracks() const
+
+std::shared_ptr<Frame> LGraph::find_triangulatable_movement_frame(const std::shared_ptr<Frame> frame)
+{
+    const Eigen::Vector3d ref_pos = frame->position;
+
+    for (int ii = frames.size() - 1; ii >= 0; ii--)
+    {
+        const std::shared_ptr<Frame> ref_frame = frames[ii];
+
+        if ((ref_frame->position - ref_pos).norm() > TRIANGULATE_DIST_DIFF_MAGNITUDE)
+            return ref_frame;
+    }
+
+    return nullptr;
+}
+
+void LGraph::new_landmarks_from_matched(const std::shared_ptr<Frame> ref_frame,
+        const std::shared_ptr<Frame> frame)
+{
+    std::vector<std::pair<uint32_t, uint32_t>> matches = 
+        features::match_features_flann(ref_frame->descriptors, frame->descriptors, KNN_DISTANCE_RATIO);
+
+    matches = features::radius_distance_filter_matches(matches, ref_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
+
+    std::vector<std::pair<uint32_t, uint32_t>> new_matches;
+
+    // filter matches for already existing landmarks
+    for (const auto& m : matches)
+    {
+        // find if the feature id already exists in teh landmark lookup
+        const auto it = std::find_if(ref_frame->feature_landmark_lookup.begin(), ref_frame->feature_landmark_lookup.end(),
+            [&m](const std::pair<uint32_t, uint32_t>& feature_landmark) {
+                return feature_landmark.first == m.first;
+            });
+
+        // the feature was not found --> create new landmarks
+        if (it == ref_frame->feature_landmark_lookup.end())
+            new_matches.push_back(m);
+    }
+
+    // std::cout << ref_frame->position.transpose() << ", " << frame->position.transpose() << "\n";
+
+    create_landmarks_from_matches(ref_frame, frame, new_matches);
+}
+
+void LGraph::visualize_camera_tracks(const bool visualize_landmarks) const
 {
     std::vector<std::shared_ptr<const open3d::geometry::Geometry>> debug_cameras;
 
@@ -221,6 +283,17 @@ void LGraph::visualize_camera_tracks() const
 
         camera_mesh->Transform(frames[ii]->transformation);
         debug_cameras.push_back(camera_mesh);
+    }
+
+    if (visualize_landmarks)
+    {
+        std::vector<Eigen::Vector3d> landmark_points;
+
+        for (const auto& lm : landmarks)
+            landmark_points.push_back(Eigen::Vector3d(lm.location.x, lm.location.y, lm.location.z));
+
+        auto lms_cloud = std::make_shared<open3d::geometry::PointCloud>(open3d::geometry::PointCloud(landmark_points));
+        debug_cameras.push_back(lms_cloud);
     }
 
     open3d::visualization::DrawGeometries(debug_cameras);

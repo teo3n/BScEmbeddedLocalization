@@ -43,6 +43,7 @@ struct Frame
 	std::vector<cv::KeyPoint> keypoints;
 	cv::Mat descriptors;
 
+	// <feature_id, landmark_id>
 	std::vector<std::pair<uint32_t, uint32_t>> feature_landmark_lookup;
 
 	Eigen::Vector3d position;
