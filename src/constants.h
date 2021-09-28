@@ -15,10 +15,10 @@ static const uint32_t ORB_FEATURE_COUNT = 10000;
 
 // specify the maximum distance the matches can have to be 
 // considered valid
-static const float MATCH_MAX_DISTANCE = 300.f;
+static const float MATCH_MAX_DISTANCE = 120.f;
 
 // specify by how many pixels can a pixel's position differ
-static const float FEATURE_DIST_MAX_RADIUS = 200.f;
+static const float FEATURE_DIST_MAX_RADIUS = 120.f;
 
 static const float KNN_DISTANCE_RATIO = 0.7f;
 
@@ -41,5 +41,7 @@ static const uint32_t MIN_FEATURE_LANDMARK_COUNT_NEW = 200;
 // by how much can the new frame differ in position 
 // compared to the previous frame
 static const double FRAME_POSITION_DISTANCE_DEVIATION = 1.0;
+
+static const double TRIANGULATE_DISTANCE_OUTLIER = 20.0;
 
 }

@@ -1,4 +1,5 @@
 #include "localization_graph.h"
+#include "features.h"
 #include <Open3D/Geometry/Geometry.h>
 #include <Open3D/Geometry/PointCloud.h>
 #include <Open3D/Geometry/TriangleMesh.h>
@@ -51,8 +52,8 @@ void LGraph::localize_frame(std::shared_ptr<Frame> frame)
 
 void LGraph::localize_frame_essential(const std::shared_ptr<Frame> ref_frame, std::shared_ptr<Frame> frame)
 {
-    std::vector<std::pair<uint32_t, uint32_t>> matches = features::match_features_flann(
-        ref_frame->descriptors, frame->descriptors, KNN_DISTANCE_RATIO);
+    std::vector<std::pair<uint32_t, uint32_t>> matches = features::match_features_bf_crosscheck(
+        ref_frame->descriptors, frame->descriptors);
     matches = features::radius_distance_filter_matches(matches, ref_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
 
 
@@ -88,7 +89,7 @@ void LGraph::localize_frame_essential(const std::shared_ptr<Frame> ref_frame, st
     frame->position = dt;
     frame->rotation = dR;
 
-    const auto T_P = utilities::TP_from_Rt(dR, dt, frame->params.intr);
+    const auto T_P = utilities::TP_from_Rt(dR.transpose(), -dR.transpose() * dt, frame->params.intr);
     frame->transformation = T_P.first;
     frame->projection = T_P.second;
     cv::eigen2cv(T_P.second, frame->projection_cv);
@@ -108,11 +109,15 @@ void LGraph::create_landmarks_from_matches(const std::shared_ptr<Frame> ref_fram
     {
         Landmark lm;
 
+        lm.first_frame = ref_frame;
+
         lm.descriptors.push_back(features::get_individual_descriptor(ref_frame->descriptors, m.first));
         lm.descriptors.push_back(features::get_individual_descriptor(frame->descriptors, m.second));
 
         const std::vector<cv::Point2f> x1 = { ref_frame->keypoints[m.first].pt };
         const std::vector<cv::Point2f> x2 = { frame->keypoints[m.second].pt };
+
+        lm.first_feature_point = x1[0];
 
         cv::Mat p4d;
         cv::triangulatePoints(ref_frame->projection_cv, frame->projection_cv, x1, x2, p4d);
@@ -120,6 +125,11 @@ void LGraph::create_landmarks_from_matches(const std::shared_ptr<Frame> ref_fram
                     p4d.at<float>(0, 0) / p4d.at<float>(3, 0),
                     p4d.at<float>(1, 0) / p4d.at<float>(3, 0),
                     p4d.at<float>(2, 0) / p4d.at<float>(3, 0));
+
+        // if the triangulated point is behind the camera or too far away -> ignore 
+        if (!utilities::point_infront_of_camera(frame->projection, Eigen::Vector3d(lm.location.x, lm.location.y, lm.location.z)) ||
+            Eigen::Vector3d(lm.location.x, lm.location.y, lm.location.z).norm() > TRIANGULATE_DISTANCE_OUTLIER)
+            continue;
 
         landmarks.push_back(lm);
 
@@ -135,6 +145,24 @@ void LGraph::update_landmarks(const std::shared_ptr<Frame> frame,
     {
         Landmark& lm = landmarks[landmark_ids[ii]];
 
+        // const std::vector<cv::Point2f> x1 = { lm.first_feature_point };
+        // const std::vector<cv::Point2f> x2 = { frame->keypoints[feature_ids[ii]].pt };
+
+        // cv::Mat p4d;
+        // cv::triangulatePoints(lm.first_frame->projection_cv, frame->projection_cv, x1, x2, p4d);
+        // const cv::Point3f p3d = cv::Point3f(
+        //             p4d.at<float>(0, 0) / p4d.at<float>(3, 0),
+        //             p4d.at<float>(1, 0) / p4d.at<float>(3, 0),
+        //             p4d.at<float>(2, 0) / p4d.at<float>(3, 0));
+
+        // // if the triangulated point is behind the camera -> ignore 
+        // if (utilities::point_infront_of_camera(frame->projection, Eigen::Vector3d(p3d.x, p3d.y, p3d.z)) &&
+        //     Eigen::Vector3d(p3d.x, p3d.y, p3d.z).norm() < TRIANGULATE_DISTANCE_OUTLIER)
+        // {
+        //     lm.location += p3d;
+        //     lm.location /= 2.0;
+        // }
+
         frame->feature_landmark_lookup.push_back(std::make_pair(feature_ids[ii], landmark_ids[ii]));
         lm.descriptors.push_back(features::get_individual_descriptor(frame->descriptors, feature_ids[ii]));
     }
@@ -149,7 +177,7 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
      */
 
     std::vector<std::pair<uint32_t, uint32_t>> matches = 
-        features::match_features_flann(prev_frame->descriptors, frame->descriptors, KNN_DISTANCE_RATIO);
+        features::match_features_bf_crosscheck(prev_frame->descriptors, frame->descriptors);
     matches = features::radius_distance_filter_matches(matches, prev_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
 
     // DEBUG_visualize_matches(*prev_frame->rgb, *frame->rgb, matches, prev_frame->keypoints, frame->keypoints);
@@ -191,10 +219,10 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
     cv::cv2eigen(rcv_mat, dR);
     cv::cv2eigen(tcv, dt);
 
-    frame->position = dt;
     frame->rotation = dR;
+    frame->position = dt;
 
-    const auto T_P = utilities::TP_from_Rt(dR, dt, frame->params.intr);
+    const auto T_P = utilities::TP_from_Rt(dR.transpose(), -dR.transpose() * dt, frame->params.intr);
     frame->transformation = T_P.first;
     frame->projection = T_P.second;
     cv::eigen2cv(T_P.second, frame->projection_cv);
@@ -245,7 +273,7 @@ void LGraph::new_landmarks_from_matched(const std::shared_ptr<Frame> ref_frame,
         const std::shared_ptr<Frame> frame)
 {
     std::vector<std::pair<uint32_t, uint32_t>> matches = 
-        features::match_features_flann(ref_frame->descriptors, frame->descriptors, KNN_DISTANCE_RATIO);
+        features::match_features_bf_crosscheck(ref_frame->descriptors, frame->descriptors);
 
     matches = features::radius_distance_filter_matches(matches, ref_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
 

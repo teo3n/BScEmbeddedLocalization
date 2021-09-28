@@ -70,9 +70,47 @@ inline std::pair<Eigen::Matrix4d, Mat34> TP_from_Rt(
 
 	Eigen::Matrix3d intr_eigen;
 	cv::cv2eigen(intr, intr_eigen);
-	const Mat34 P = P_from_KRt(R, t, intr_eigen);
+	const Mat34 P = P_from_KRt(R.transpose(), -R.transpose() * t, intr_eigen);
 
 	return std::make_pair(T, P);
+}
+
+/**
+ *  @brief converts the given point into homogenous coordinates
+ */
+inline Eigen::Vector4d euclidean_to_homogenous(const Eigen::Vector3d& eucl)
+{
+    return Eigen::Vector4d(eucl.x(), eucl.y(), eucl.z(), 1.0);
+}
+
+/**
+ *  @brief converts the given homogenous coordinate into a 3d point
+ */
+inline Eigen::Vector3d homogeneous_to_euclidean(const Eigen::Vector4d& H)
+{
+    double w = H(3);
+    Eigen::Vector3d eucl;
+    eucl << H(0) / w, H(1) / w, H(2) / w;
+    return eucl;
+}
+
+
+/**
+ *  @brief checks if the given point is in front of the camera
+ *  @param P projection matrix
+ *  @param p the given 3d point
+ */
+inline bool point_infront_of_camera(const Mat34 P, const Eigen::Vector3d p)
+{
+    const Eigen::Vector4d h = euclidean_to_homogenous(p);
+
+    double condition_1 = P.row(2).dot(h) * h[3];
+    double condition_2 = h[2] * h[3];
+
+    if (condition_1 > 0 && condition_2 > 0)
+        return true;
+    else
+        return false;
 }
 
 }

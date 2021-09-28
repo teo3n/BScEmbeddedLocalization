@@ -93,7 +93,7 @@ inline std::vector<std::pair<uint32_t, uint32_t>> match_features_bf_crosscheck(c
  * 		Faster (in theory), and especially with larger feature counts.
  */
 inline std::vector<std::pair<uint32_t, uint32_t>> 
-	match_features_flann(const cv::Mat& desc1, const cv::Mat& desc2, const float distance_ratio)
+	match_features_flann(const cv::Mat& desc1, const cv::Mat& desc2, const float distance_ratio = KNN_DISTANCE_RATIO)
 {
 	std::vector<std::pair<uint32_t, uint32_t>> feature_matches;
 	std::vector<std::vector<cv::DMatch>> knn_matches;
