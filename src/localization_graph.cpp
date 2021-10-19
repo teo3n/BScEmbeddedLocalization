@@ -109,27 +109,44 @@ void LGraph::create_landmarks_from_matches(const std::shared_ptr<Frame> ref_fram
     {
         Landmark lm;
 
-        lm.first_frame = ref_frame;
-
         lm.descriptors.push_back(features::get_individual_descriptor(ref_frame->descriptors, m.first));
         lm.descriptors.push_back(features::get_individual_descriptor(frame->descriptors, m.second));
 
         const std::vector<cv::Point2f> x1 = { ref_frame->keypoints[m.first].pt };
         const std::vector<cv::Point2f> x2 = { frame->keypoints[m.second].pt };
 
-        lm.first_feature_point = x1[0];
+        lm.feature_2d_points.push_back(x1[0]);
+        lm.feature_2d_points.push_back(x2[0]);
+
+        lm.triangulate_2d_points.push_back(x1[0]);
+        lm.triangulate_2d_points.push_back(x2[0]);
+
+        lm.view_frames.push_back(ref_frame);
+        lm.view_frames.push_back(frame);
+
+        lm.triangulate_frames.push_back(ref_frame);
+        lm.triangulate_frames.push_back(frame);
+
+        // const cv::Point3d new_p3d = features::triangulate_multiview(lm.triangulate_2d_points, [&lm] {
+        //     std::vector<Mat34> pmats;
+        //     for (const auto& f : lm.triangulate_frames)
+        //         pmats.push_back(f->projection);
+        //     return pmats;
+        // }());
 
         cv::Mat p4d;
         cv::triangulatePoints(ref_frame->projection_cv, frame->projection_cv, x1, x2, p4d);
-        lm.location = cv::Point3f(
+        const cv::Point3f new_p3d = cv::Point3f(
                     p4d.at<float>(0, 0) / p4d.at<float>(3, 0),
                     p4d.at<float>(1, 0) / p4d.at<float>(3, 0),
                     p4d.at<float>(2, 0) / p4d.at<float>(3, 0));
 
         // if the triangulated point is behind the camera or too far away -> ignore 
-        if (!utilities::point_infront_of_camera(frame->projection, Eigen::Vector3d(lm.location.x, lm.location.y, lm.location.z)) ||
-            Eigen::Vector3d(lm.location.x, lm.location.y, lm.location.z).norm() > TRIANGULATE_DISTANCE_OUTLIER)
+        if (!utilities::point_in_front(frame->projection, Eigen::Vector3d(new_p3d.x, new_p3d.y, new_p3d.z)) ||
+            Eigen::Vector3d(new_p3d.x, new_p3d.y, new_p3d.z).norm() > TRIANGULATE_DISTANCE_OUTLIER)
             continue;
+
+        lm.location = new_p3d;
 
         landmarks.push_back(lm);
 
@@ -165,6 +182,47 @@ void LGraph::update_landmarks(const std::shared_ptr<Frame> frame,
 
         frame->feature_landmark_lookup.push_back(std::make_pair(feature_ids[ii], landmark_ids[ii]));
         lm.descriptors.push_back(features::get_individual_descriptor(frame->descriptors, feature_ids[ii]));
+        lm.feature_2d_points.push_back(frame->keypoints[feature_ids[ii]].pt);
+        lm.view_frames.push_back(frame);
+
+        // for performance's sake skip the incremential 3d improvement
+        continue;
+
+        const double frame_angle = utilities::calculate_triangulation_angle(lm.triangulate_frames.back()->position, frame->position, 
+            Eigen::Vector3d(lm.location.x, lm.location.y, lm.location.z));
+
+        if (frame_angle < MIN_TRIANGULATION_ANGLE)
+            continue;
+
+        // std::cout << "angle: " << frame_angle << "\n";
+
+        lm.triangulate_2d_points.push_back(frame->keypoints[feature_ids[ii]].pt);
+
+        const cv::Point3d new_p3d = features::triangulate_multiview(lm.triangulate_2d_points, [&lm, &frame] {
+            std::vector<Mat34> pmats;
+            for (const auto& f : lm.triangulate_frames)
+                pmats.push_back(f->projection);
+            pmats.push_back(frame->projection);
+            return pmats;
+        }());
+
+        if (std::isnan(new_p3d.x) || std::isnan(new_p3d.y) || std::isnan(new_p3d.z) ||
+            std::isinf(new_p3d.x) || std::isinf(new_p3d.y) || std::isinf(new_p3d.z))
+        {
+            lm.triangulate_2d_points.pop_back();
+            continue;
+        }
+
+        // if the triangulated point is behind the camera or too far away -> ignore 
+        if (!utilities::point_in_front(frame->projection, Eigen::Vector3d(new_p3d.x, new_p3d.y, new_p3d.z)) ||
+            Eigen::Vector3d(new_p3d.x, new_p3d.y, new_p3d.z).norm() > TRIANGULATE_DISTANCE_OUTLIER)
+        {
+            lm.triangulate_2d_points.pop_back();
+            continue;
+        }
+
+        lm.location = new_p3d;
+        lm.triangulate_frames.push_back(frame);
     }
 }
 
@@ -205,6 +263,8 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
             }
         }
     }
+
+    cv::undistortPoints(feature_points, feature_points, frame->params.intr, frame->params.distortion, cv::noArray(), frame->params.intr);
 
     cv::Mat rcv, tcv, rcv_mat;
     cv::eigen2cv(prev_frame->position, tcv);
@@ -256,6 +316,8 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
 
 std::shared_ptr<Frame> LGraph::find_triangulatable_movement_frame(const std::shared_ptr<Frame> frame)
 {
+    // use angle to find good frame
+
     const Eigen::Vector3d ref_pos = frame->position;
 
     for (int ii = frames.size() - 1; ii >= 0; ii--)

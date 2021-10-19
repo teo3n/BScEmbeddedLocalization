@@ -44,4 +44,7 @@ static const double FRAME_POSITION_DISTANCE_DEVIATION = 1.0;
 
 static const double TRIANGULATE_DISTANCE_OUTLIER = 20.0;
 
+// the minimum angle between frames for triangulation
+static const double MIN_TRIANGULATION_ANGLE = 1.0;
+
 }

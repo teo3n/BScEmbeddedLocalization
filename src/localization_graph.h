@@ -35,8 +35,11 @@ struct Landmark
 {
     cv::Point3f location;
     std::vector<cv::Mat> descriptors;
-    std::shared_ptr<Frame> first_frame;
-    cv::Point2f first_feature_point;
+    std::vector<std::shared_ptr<Frame>> view_frames;
+    std::vector<cv::Point2f> feature_2d_points;
+
+    std::vector<std::shared_ptr<Frame>> triangulate_frames;
+    std::vector<cv::Point2f> triangulate_2d_points;
 };
 
 class LGraph

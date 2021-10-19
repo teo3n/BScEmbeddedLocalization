@@ -113,4 +113,41 @@ inline bool point_infront_of_camera(const Mat34 P, const Eigen::Vector3d p)
         return false;
 }
 
+/**
+ *  @brief checks if point is in front of the given projection matrix,
+ *      cheirality constraint.
+ */
+inline bool point_in_front(const Mat34& pmat, const Eigen::Vector3d& p3d)
+{
+  return pmat.row(2).dot(p3d.homogeneous()) >= std::numeric_limits<double>::epsilon();
+}
+
+/**
+ *  @brief calculates the triangulation angle, to satisfy cheirality constraint
+ *  @note borrowed from https://github.com/colmap/colmap/blob/9f3a75ae9c72188244f2403eb085e51ecf4397a8/src/base/triangulation.cc
+ */
+inline double calculate_triangulation_angle(const Eigen::Vector3d& proj_center1,
+                                   const Eigen::Vector3d& proj_center2,
+                                   const Eigen::Vector3d& point3d)
+{
+  const double baseline_length_squared = (proj_center1 - proj_center2).squaredNorm();
+
+  const double ray_length_squared1 = (point3d - proj_center1).squaredNorm();
+  const double ray_length_squared2 = (point3d - proj_center2).squaredNorm();
+
+  // Using "law of cosines" to compute the enclosing angle between rays.
+  const double denominator = 2.0 * std::sqrt(ray_length_squared1 * ray_length_squared2);
+  if (denominator == 0.0)
+    return 0.0;
+
+  const double nominator = ray_length_squared1 + ray_length_squared2 - baseline_length_squared;
+  const double angle = std::abs(std::acos(nominator / denominator));
+
+  // Triangulation is unstable for acute angles (far away points) and
+  // obtuse angles (close points), so always compute the minimum angle
+  // between the two intersecting rays.
+  return std::min(angle, M_PI - angle);
+}
+
+
 }

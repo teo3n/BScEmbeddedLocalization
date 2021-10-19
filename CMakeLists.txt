@@ -7,6 +7,8 @@ set(CMAKE_USE_WIN32_THREADS_INIT 0)
 set(CMAKE_USE_PTHREADS_INIT 1)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 
+project(kandi3dloc)
+
 set(SOURCES main.cpp 
     src/camera_module.h src/camera_module.cpp
     src/localization_graph.h src/localization_graph.cpp
@@ -17,7 +19,6 @@ set(SOURCES main.cpp
     src/utilities.h
 )
 
-project(kandi3dloc)
 
 find_package(Open3D HINTS ${CMAKE_INSTALL_PREFIX}/lib/CMake)
 list(APPEND Open3D_LIBRARIES dl)

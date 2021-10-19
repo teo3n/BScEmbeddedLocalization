@@ -12,7 +12,6 @@
 #include <iostream>
 #include <memory>
 #include <exception>
-#include <opencv2/core/mat.hpp>
 #include <opencv2/features2d.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgcodecs.hpp>
@@ -80,9 +79,9 @@ int main()
       const std::shared_ptr<cv::Mat> frame = std::make_shared<cv::Mat>(cv::imread("../assets/rock/rgb_" + std::to_string(ii) + ".png"));
       std::shared_ptr<Frame> ff = frame_from_rgb(frame, intr, dist);
 
+      lgraph.localize_frame(ff);
       try
       {
-         lgraph.localize_frame(ff);
       }
       catch (std::exception& e)
       {
