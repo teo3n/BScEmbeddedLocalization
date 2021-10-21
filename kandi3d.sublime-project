@@ -23,7 +23,7 @@
 			"name": "Launch Program",
 			"target": "build/kandi3dloc",
 			"cwd": "^\"${workspaceRoot}\"",
-			"valuesFormatting": "parseText"
+			"valuesFormatting": "parseText",
 		},
 	],
 }

@@ -40,6 +40,8 @@ struct Landmark
 
     std::vector<std::shared_ptr<Frame>> triangulate_frames;
     std::vector<cv::Point2f> triangulate_2d_points;
+
+    Eigen::Vector3d color;
 };
 
 class LGraph

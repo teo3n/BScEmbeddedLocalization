@@ -9,6 +9,7 @@
 #include <fmt/format.h>
 #include <memory>
 #include <opencv2/calib3d.hpp>
+#include <opencv2/core/matx.hpp>
 #include <opencv2/core/types.hpp>
 #include <stdexcept>
 #include <utility>
@@ -147,6 +148,8 @@ void LGraph::create_landmarks_from_matches(const std::shared_ptr<Frame> ref_fram
             continue;
 
         lm.location = new_p3d;
+        const cv::Vec3b col = frame->rgb->at<cv::Vec3b>(x2[0].x, x2[0].y);
+        lm.color = Eigen::Vector3d((float)col.val[0] / 255.0, (float)col.val[1] / 255.0, (float)col.val[2] / 255.0);
 
         landmarks.push_back(lm);
 
@@ -378,11 +381,16 @@ void LGraph::visualize_camera_tracks(const bool visualize_landmarks) const
     if (visualize_landmarks)
     {
         std::vector<Eigen::Vector3d> landmark_points;
+        std::vector<Eigen::Vector3d> landmark_colors;
 
         for (const auto& lm : landmarks)
+        {
             landmark_points.push_back(Eigen::Vector3d(lm.location.x, lm.location.y, lm.location.z));
+            landmark_colors.push_back(lm.color);
+        }
 
         auto lms_cloud = std::make_shared<open3d::geometry::PointCloud>(open3d::geometry::PointCloud(landmark_points));
+        lms_cloud->colors_ = landmark_colors;
         debug_cameras.push_back(lms_cloud);
     }
 
