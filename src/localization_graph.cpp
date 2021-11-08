@@ -103,7 +103,7 @@ void LGraph::localize_frame_essential(const std::shared_ptr<Frame> ref_frame, st
 
     create_landmarks_from_matches(ref_frame, frame, matches);
 
-    visualize_camera_tracks(true);
+    // visualize_camera_tracks(true);
 }
 
 void LGraph::create_landmarks_from_matches(const std::shared_ptr<Frame> ref_frame, 
@@ -257,6 +257,7 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
     std::vector<std::pair<uint32_t, uint32_t>> matches = 
         features::match_features_bf_crosscheck(prev_frame->descriptors, frame->descriptors);
     matches = features::radius_distance_filter_matches(matches, prev_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
+    // matches = homography_filter_matches(prev_frame, frame, matches);
 
     // DEBUG_visualize_matches(*prev_frame->rgb, *frame->rgb, matches, prev_frame->keypoints, frame->keypoints);
 
@@ -303,7 +304,7 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
     cv::eigen2cv(prev_frame->rotation, rcv);
 
     std::vector<int> inliers;
-    cv::solvePnPRansac(lm_points, feature_points, frame->params.intr, frame->params.distortion, rcv, tcv, true, 1000, 4.0, 0.987, inliers);
+    cv::solvePnPRansac(lm_points, feature_points, frame->params.intr, frame->params.distortion, rcv, tcv, true, 1000, 8.0, 0.988, inliers);
     cv::Rodrigues(rcv, rcv_mat);
 
     Eigen::Matrix3d dR;
@@ -332,10 +333,9 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
     // update matched landmarks using lookup
     update_landmarks(frame, feature_ids, lm_ids);
 
-    if (feature_points.size() < MIN_MATCH_TRIANGULATE_NEW_COUNT)
-        backpropagate_new_landmarks_homography(frame, landmarks[lm_ids[0]].location);
+    // backpropagate_new_landmarks_homography(frame, landmarks[lm_ids[0]].location);
 
-    return;
+    // return;
 
     // if (feature_points.size() < MIN_MATCH_TRIANGULATE_NEW_COUNT)
     // {
@@ -355,16 +355,55 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
 void LGraph::backpropagate_new_landmarks_homography(const std::shared_ptr<Frame> frame,
         const cv::Point3f tr_angle_point)
 {
+    // TODO: find the largest difference frame to match against
+
+    std::shared_ptr<Frame> ref_frame = nullptr;
+    const Eigen::Vector3d tr_point (tr_angle_point.x, tr_angle_point.y, tr_angle_point.z);
+
+    if (frames.size() < 4)
+        return;
+
+    for (int ii = frames.size() - 3; ii >= 0; ii--)
+    {
+        const double frame_angle = utilities::calculate_triangulation_angle(frames[ii]->position, frame->position, tr_point);
+
+        if (RAD2DEG(frame_angle) < MIN_TRIANGULATION_ANGLE)
+            continue;
+
+        ref_frame = frames[ii];
+        break;
+    }
+
+    if (!ref_frame)
+        return;
+
     std::vector<std::pair<uint32_t, uint32_t>> matches = 
-        features::match_features_bf_crosscheck(frames[0]->descriptors, frame->descriptors);
-    // matches = features::radius_distance_filter_matches(matches, frames[0]->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
-    matches = homography_filter_matches(frames[0], frame, matches);
+        features::match_features_bf_crosscheck(ref_frame->descriptors, frame->descriptors);
+    matches = homography_filter_matches(ref_frame, frame, matches);
 
-    create_landmarks_from_matches(frames[0], frame, matches);
 
-    visualize_camera_tracks(true);
+    // filter matches for already existing landmarks
 
-    DEBUG_visualize_matches(*frames[0]->rgb, *frame->rgb, matches, frames[0]->keypoints, frame->keypoints);
+    std::vector<std::pair<uint32_t, uint32_t>> new_matches;
+    for (const auto& m : matches)
+    {
+        // find if the feature id already exists in teh landmark lookup
+        const auto it = std::find_if(ref_frame->feature_landmark_lookup.begin(), ref_frame->feature_landmark_lookup.end(),
+            [&m](const std::pair<uint32_t, uint32_t>& feature_landmark) {
+                return feature_landmark.first == m.first;
+            });
+
+        // the feature was not found --> create new landmarks
+        if (it == ref_frame->feature_landmark_lookup.end())
+            new_matches.push_back(m);
+    }
+
+    create_landmarks_from_matches(ref_frame, frame, new_matches);
+
+    std::cout << "matches " << matches.size() << " out of " << new_matches.size() << "\n";
+
+    // DEBUG_visualize_matches(*ref_frame->rgb, *frame->rgb, matches, ref_frame->keypoints, frame->keypoints);
+    // visualize_camera_tracks(true);
 
 }
 

@@ -51,7 +51,7 @@ static const double TRIANGULATE_DISTANCE_OUTLIER = 20.0;
 static const double MIN_TRIANGULATION_ANGLE = 15.0;
 
 // threshold, after which homography filtering is considered invalid
-static const double HOMOGRAPHY_FILTER_MAX_DIST = 4.5;
+static const double HOMOGRAPHY_FILTER_MAX_DIST = 3.0;
 
 // ransac threshold used in calculating homography
 static const double HOMOGRAPHY_RANSAC_THRESHOLD = 2.5;
