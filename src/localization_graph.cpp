@@ -250,16 +250,6 @@ void LGraph::update_landmarks(const std::shared_ptr<Frame> frame,
 
 void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::shared_ptr<Frame> frame)
 {
-    /**
-     * TODO:
-     *  - match against previous frame
-     *  - take 3d points from previous frame
-     *  - pnp
-     *  - backpropagate the frames, pick one with enough movement
-     *  - triangualte 3d points for current-frame detected features
-     *  - rinse and repeat
-     */
-
     std::vector<std::pair<uint32_t, uint32_t>> matches = 
         features::match_features_bf_crosscheck(prev_frame->descriptors, frame->descriptors);
     // matches = features::radius_distance_filter_matches(matches, prev_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
@@ -329,8 +319,8 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
     // reject the frame if it has too high location magnitude
     if (frame->position.norm() - prev_frame->position.norm() > FRAME_POSITION_DISTANCE_DEVIATION)
     {
-        std::cout << "frame rejected for having position of " << frame->position.transpose() << 
-            " compared to " << prev_frame->position.transpose() << "\n";
+        std::cout << "frame rejected for having an outlier position of " << frame->position.transpose() << 
+            " compared to the previous frame pose of " << prev_frame->position.transpose() << "\n";
 
         frames.pop_back();
         return;
@@ -341,29 +331,9 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
 
     if (feature_points.size() < MIN_MATCH_TRIANGULATE_NEW_COUNT)
     {
-        std::cout << "low reached, create new landmarks\n";
+        std::cout << "low number of active landmarks reached, creating new ones\n";
         new_landmarks_standalone(frame, lm_points[0]);
     }
-
-    // backpropagate_new_landmarks_homography(frame, landmarks[lm_ids[0]].location);
-
-    // return;
-
-    // if (feature_points.size() < MIN_MATCH_TRIANGULATE_NEW_COUNT)
-    // {
-    //     backpropagate_new_landmarks_homography(frame, landmarks[lm_ids[0]].location);
-    // }
-
-    // return;
-
-    // if (feature_points.size() <= MIN_FEATURE_LANDMARK_COUNT_NEW)
-    // {
-    //     const auto rframe = find_triangulatable_movement_frame(frame);
-    //     if (rframe)
-    //         new_landmarks_from_matched(rframe, frame);
-    // }
-
-    // new_landmarks_standalone(frame, lm_points[0]);
 }
 
 void LGraph::new_landmarks_standalone(const std::shared_ptr<Frame> frame, const cv::Point3f tr_angle_point)
