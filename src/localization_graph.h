@@ -11,6 +11,8 @@
 #include <cstdint>
 #include <iostream>
 #include <memory>
+#include <map>
+#include <unordered_map>
 #include <opencv2/core/types.hpp>
 #include <vector>
 
@@ -26,6 +28,7 @@
 #include "constants.h"
 #include "utilities.h"
 #include "debug_functions.h"
+#include "timer.h"
 
 
 namespace k3d
@@ -96,6 +99,40 @@ private:
      */
     void new_landmarks_from_matched(const std::shared_ptr<Frame> ref_frame,
         const std::shared_ptr<Frame> frame);
+
+    /**
+     *  @brief Propagates new landmarks from the features, which were not found
+     *      to be current landmarks (the inverse of current_frame_feature_points) 
+     *  @param ref_frame_fids_inv, the features, which correspond to frame's
+     *      matched landmarks, but not landmarks
+     *  @param matches, all of the matches between frame and ref_frame
+     *  @param tr_angle_point, the 3D point which is used to calculate
+     *      the triangulation angle
+     */
+    void backpropagate_new_landmarks(const std::shared_ptr<Frame> frame,
+        const std::shared_ptr<Frame> ref_frame,
+        const std::vector<uint32_t>& ref_frame_fids_inv,
+        const std::vector<uint32_t>& current_frame_fids_inv,
+        const std::vector<std::pair<uint32_t, uint32_t>>& matches,
+        const cv::Point3f tr_angle_point);
+
+    /**
+     *  @brief Propagates new landmarks by traversing the frame-tree backwards
+     *      until a frame is found, which fulfills the cheirality constraint
+     *      to a satisfying degree. A more simplified version of backpropagate_new_landmarks
+     */
+    void backpropagate_new_landmarks_homography(const std::shared_ptr<Frame> frame,
+        const cv::Point3f tr_angle_point);
+
+    /**
+     *  @brief Filters matches using homography, i.e. computer the homography
+     *      between two frames and reprojects the features of ref_frame into 
+     *      the transformation of frame. Then, checks the distance between the
+     *      reprojected feature, if it is over threshold -> remove the feature
+     */
+    static std::vector<std::pair<uint32_t, uint32_t>> homography_filter_matches(
+        const std::shared_ptr<Frame> ref_frame, const std::shared_ptr<Frame> frame,
+        const std::vector<std::pair<uint32_t, uint32_t>>& matches);
 
     /**
      *  @brief Traverses the alredy localized frames backwards, and finds the first

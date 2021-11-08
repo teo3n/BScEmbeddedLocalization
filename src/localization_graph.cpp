@@ -9,6 +9,7 @@
 #include <fmt/format.h>
 #include <memory>
 #include <opencv2/calib3d.hpp>
+#include <opencv2/core.hpp>
 #include <opencv2/core/matx.hpp>
 #include <opencv2/core/types.hpp>
 #include <stdexcept>
@@ -101,6 +102,8 @@ void LGraph::localize_frame_essential(const std::shared_ptr<Frame> ref_frame, st
     #endif
 
     create_landmarks_from_matches(ref_frame, frame, matches);
+
+    visualize_camera_tracks(true);
 }
 
 void LGraph::create_landmarks_from_matches(const std::shared_ptr<Frame> ref_frame, 
@@ -128,19 +131,23 @@ void LGraph::create_landmarks_from_matches(const std::shared_ptr<Frame> ref_fram
         lm.triangulate_frames.push_back(ref_frame);
         lm.triangulate_frames.push_back(frame);
 
-        // const cv::Point3d new_p3d = features::triangulate_multiview(lm.triangulate_2d_points, [&lm] {
-        //     std::vector<Mat34> pmats;
-        //     for (const auto& f : lm.triangulate_frames)
-        //         pmats.push_back(f->projection);
-        //     return pmats;
-        // }());
-
+// use multiview triangulation. Considerably slower.
+#if false
+        const cv::Point3d new_p3d = features::triangulate_multiview_eigen(lm.triangulate_2d_points, [&lm] {
+            std::vector<Mat34> pmats;
+            for (const auto& f : lm.triangulate_frames)
+                pmats.push_back(f->projection);
+            return pmats;
+        }());
+// use 2view DLT. Fast.
+#else
         cv::Mat p4d;
         cv::triangulatePoints(ref_frame->projection_cv, frame->projection_cv, x1, x2, p4d);
         const cv::Point3f new_p3d = cv::Point3f(
                     p4d.at<float>(0, 0) / p4d.at<float>(3, 0),
                     p4d.at<float>(1, 0) / p4d.at<float>(3, 0),
                     p4d.at<float>(2, 0) / p4d.at<float>(3, 0));
+#endif
 
         // if the triangulated point is behind the camera or too far away -> ignore 
         if (!utilities::point_in_front(frame->projection, Eigen::Vector3d(new_p3d.x, new_p3d.y, new_p3d.z)) ||
@@ -149,7 +156,7 @@ void LGraph::create_landmarks_from_matches(const std::shared_ptr<Frame> ref_fram
 
         lm.location = new_p3d;
         const cv::Vec3b col = frame->rgb->at<cv::Vec3b>(x2[0].x, x2[0].y);
-        lm.color = Eigen::Vector3d((float)col.val[0] / 255.0, (float)col.val[1] / 255.0, (float)col.val[2] / 255.0);
+        lm.color = Eigen::Vector3d((float)col.val[2] / 255.0, (float)col.val[1] / 255.0, (float)col.val[0] / 255.0);
 
         landmarks.push_back(lm);
 
@@ -191,41 +198,51 @@ void LGraph::update_landmarks(const std::shared_ptr<Frame> frame,
         // for performance's sake skip the incremential 3d improvement
         continue;
 
-        const double frame_angle = utilities::calculate_triangulation_angle(lm.triangulate_frames.back()->position, frame->position, 
-            Eigen::Vector3d(lm.location.x, lm.location.y, lm.location.z));
+        const Eigen::Vector3d test_p3d (lm.location.x, lm.location.y, lm.location.z);
 
-        if (frame_angle < MIN_TRIANGULATION_ANGLE)
-            continue;
-
-        // std::cout << "angle: " << frame_angle << "\n";
-
-        lm.triangulate_2d_points.push_back(frame->keypoints[feature_ids[ii]].pt);
-
-        const cv::Point3d new_p3d = features::triangulate_multiview(lm.triangulate_2d_points, [&lm, &frame] {
-            std::vector<Mat34> pmats;
-            for (const auto& f : lm.triangulate_frames)
-                pmats.push_back(f->projection);
-            pmats.push_back(frame->projection);
-            return pmats;
-        }());
-
-        if (std::isnan(new_p3d.x) || std::isnan(new_p3d.y) || std::isnan(new_p3d.z) ||
-            std::isinf(new_p3d.x) || std::isinf(new_p3d.y) || std::isinf(new_p3d.z))
+        // find a triangulatable frame
+        for (int jj = lm.triangulate_frames.size() - 1; jj >= 0; jj--)
         {
-            lm.triangulate_2d_points.pop_back();
-            continue;
-        }
+            const double frame_angle = utilities::calculate_triangulation_angle(lm.triangulate_frames[jj]->position, frame->position, test_p3d);
 
-        // if the triangulated point is behind the camera or too far away -> ignore 
-        if (!utilities::point_in_front(frame->projection, Eigen::Vector3d(new_p3d.x, new_p3d.y, new_p3d.z)) ||
-            Eigen::Vector3d(new_p3d.x, new_p3d.y, new_p3d.z).norm() > TRIANGULATE_DISTANCE_OUTLIER)
-        {
-            lm.triangulate_2d_points.pop_back();
-            continue;
-        }
+            // std::cout << frame_angle << ", " << RAD2DEG(frame_angle) << "\n";
 
-        lm.location = new_p3d;
-        lm.triangulate_frames.push_back(frame);
+            if (RAD2DEG(frame_angle) < MIN_TRIANGULATION_ANGLE)
+                continue;
+
+
+            lm.triangulate_2d_points.push_back(frame->keypoints[feature_ids[ii]].pt);
+
+            const cv::Point3d new_p3d = features::triangulate_multiview_eigen(lm.feature_2d_points, [&lm, &frame] {
+                std::vector<Mat34> pmats;
+                for (const auto& f : lm.view_frames)
+                    pmats.push_back(f->projection);
+                pmats.push_back(frame->projection);
+                return pmats;
+            }());
+
+            if (std::isnan(new_p3d.x) || std::isnan(new_p3d.y) || std::isnan(new_p3d.z) ||
+                std::isinf(new_p3d.x) || std::isinf(new_p3d.y) || std::isinf(new_p3d.z))
+            {
+                lm.triangulate_2d_points.pop_back();
+                continue;
+            }
+
+            // if the triangulated point is behind the camera or too far away -> ignore 
+            if (!utilities::point_in_front(frame->projection, Eigen::Vector3d(new_p3d.x, new_p3d.y, new_p3d.z)) ||
+                Eigen::Vector3d(new_p3d.x, new_p3d.y, new_p3d.z).norm() > TRIANGULATE_DISTANCE_OUTLIER)
+            {
+                lm.triangulate_2d_points.pop_back();
+                continue;
+            }
+
+            lm.location = new_p3d;
+            lm.triangulate_frames.push_back(frame);
+
+            std::cout << ii << " updated, " << frame_angle << ", " << RAD2DEG(frame_angle) << "\n";
+
+            break;
+        }
     }
 }
 
@@ -247,7 +264,7 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
     std::vector<cv::Point3f> lm_points;
     std::vector<uint32_t> lm_ids;
     std::vector<cv::Point2f> feature_points;
-    std::vector<uint32_t> feature_ids;
+    std::vector<uint32_t> feature_ids, feature_ids_inv, prev_feature_ids_inv;
 
     // collect landmark point ids and current frame feature point ids
     // find prev-current matched form prev-landmarks
@@ -264,7 +281,19 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
                 lm_points.push_back(landmarks[flm.second].location);
                 lm_ids.push_back(flm.second);
             }
+            else
+            {
+                prev_feature_ids_inv.push_back(match.first);
+                feature_ids_inv.push_back(match.second);
+            }
         }
+    }
+
+    if (feature_points.size() < MIN_MATCH_FEATURE_COUNT)
+    {
+        std::cout << "could not localize frame, not enough matches: " << feature_points.size() << "\n";
+        this->frames.pop_back();
+        return;
     }
 
     cv::undistortPoints(feature_points, feature_points, frame->params.intr, frame->params.distortion, cv::noArray(), frame->params.intr);
@@ -300,19 +329,158 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
         return;
     }
 
-    /**
-     * TODO:
-     *      fix camera positions and pointcloud positions being wack
-     */
-
     // update matched landmarks using lookup
     update_landmarks(frame, feature_ids, lm_ids);
+
+    if (feature_points.size() < MIN_MATCH_TRIANGULATE_NEW_COUNT)
+        backpropagate_new_landmarks_homography(frame, landmarks[lm_ids[0]].location);
+
+    return;
+
+    // if (feature_points.size() < MIN_MATCH_TRIANGULATE_NEW_COUNT)
+    // {
+    //     backpropagate_new_landmarks_homography(frame, landmarks[lm_ids[0]].location);
+    // }
+
+    // return;
 
     if (feature_points.size() <= MIN_FEATURE_LANDMARK_COUNT_NEW)
     {
         const auto rframe = find_triangulatable_movement_frame(frame);
         if (rframe)
             new_landmarks_from_matched(rframe, frame);
+    }
+}
+
+void LGraph::backpropagate_new_landmarks_homography(const std::shared_ptr<Frame> frame,
+        const cv::Point3f tr_angle_point)
+{
+    std::vector<std::pair<uint32_t, uint32_t>> matches = 
+        features::match_features_bf_crosscheck(frames[0]->descriptors, frame->descriptors);
+    // matches = features::radius_distance_filter_matches(matches, frames[0]->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
+    matches = homography_filter_matches(frames[0], frame, matches);
+
+    create_landmarks_from_matches(frames[0], frame, matches);
+
+    visualize_camera_tracks(true);
+
+    DEBUG_visualize_matches(*frames[0]->rgb, *frame->rgb, matches, frames[0]->keypoints, frame->keypoints);
+
+}
+
+std::vector<std::pair<uint32_t, uint32_t>> LGraph::homography_filter_matches(
+        const std::shared_ptr<Frame> ref_frame, const std::shared_ptr<Frame> frame,
+        const std::vector<std::pair<uint32_t, uint32_t>>& matches)
+{
+    if (matches.size() < 9)
+        throw std::runtime_error("not enough matches for computing homography");
+
+    std::vector<cv::Point2f> fpoints1, fpoints2;
+    fpoints1.reserve(matches.size());
+    fpoints2.reserve(matches.size());
+
+    for (const auto& m : matches)
+    {
+        fpoints1.push_back(ref_frame->keypoints[m.first].pt);
+        fpoints2.push_back(frame->keypoints[m.second].pt);
+    }
+
+    cv::Mat inlier_mask, homography;
+    std::vector<cv::DMatch> inlier_matches;
+
+    homography = findHomography(fpoints1, fpoints2, cv::RANSAC, HOMOGRAPHY_RANSAC_THRESHOLD, inlier_mask);
+
+    std::vector<std::pair<uint32_t, uint32_t>> good_matches;
+    good_matches.reserve(matches.size());
+
+    for (size_t ii = 0; ii < matches.size(); ii++)
+    {
+        cv::Mat col = cv::Mat::ones(3, 1, CV_64F);
+        col.at<double>(0) = fpoints1[ii].x;
+        col.at<double>(1) = fpoints1[ii].y;
+        col = homography * col;
+        col /= col.at<double>(2);
+
+        const double dist = sqrt(pow(col.at<double>(0) - fpoints2[ii].x, 2) + pow(col.at<double>(1) - fpoints2[ii].y, 2));
+        if (dist < HOMOGRAPHY_FILTER_MAX_DIST)
+            good_matches.push_back(matches[ii]);
+    }
+
+    good_matches.shrink_to_fit();
+    return good_matches;
+}
+
+
+void LGraph::backpropagate_new_landmarks(const std::shared_ptr<Frame> frame,
+        const std::shared_ptr<Frame> ref_frame,
+        const std::vector<uint32_t>& ref_frame_fids_inv,
+        const std::vector<uint32_t>& current_frame_fids_inv,
+        const std::vector<std::pair<uint32_t, uint32_t>>& matches,
+        const cv::Point3f tr_angle_point)
+{
+    // traverse the frames backwards, matching the features, until
+    // a frame is found which has enough triangulatable movement
+
+    // Create a data structure for holding the to-be-triangulated (tbt) feature chains.
+    // Is also used as a lookup for pruning the triangulation list
+    std::unordered_map<uint32_t, std::vector<uint32_t>> feature_chain;
+    feature_chain.reserve(current_frame_fids_inv.size());
+
+    // used to map feature ids from frame -> last_frame
+    std::map<uint32_t, uint32_t> first_current_feature_lookup;
+
+    for (int ii = 0; ii < current_frame_fids_inv.size(); ii++)
+    {
+        feature_chain.insert(std::make_pair(current_frame_fids_inv[ii], std::vector<uint32_t> { ref_frame_fids_inv[ii] }));
+        first_current_feature_lookup.insert(std::make_pair(current_frame_fids_inv[ii], ref_frame_fids_inv[ii]));
+    }
+
+    std::vector<uint32_t> last_frame_fids = ref_frame_fids_inv;
+    cv::Mat last_frame_descriptor = features::descriptor_from_feature_ids(ref_frame->descriptors, last_frame_fids);
+    std::shared_ptr<Frame> last_frame = ref_frame;
+
+
+    // -3: -1 for size, -2 for frame, -3 for ref_frame
+    for (int ii = frames.size() - 3; ii >= 0; ii--)
+    {
+        const std::shared_ptr<Frame> current_frame = frames[ii];;
+
+        // match the current latest descriptors against a new frame
+        std::vector<std::pair<uint32_t, uint32_t>> matches = 
+            features::match_features_bf_crosscheck(last_frame_descriptor, current_frame->descriptors);
+        matches = features::radius_distance_filter_matches(matches, last_frame->keypoints, current_frame->keypoints, FEATURE_DIST_MAX_RADIUS);
+
+        std::cout << "matches size: " << matches.size() << "\n";
+
+        last_frame_fids.clear();
+
+        // populate tbt feature chain lookup
+        for (const auto& match : matches)
+        {
+            // find match.first in first_current_feature_lookup, acquire the "key", use the key to
+            // index into feature_chain, append match.second
+            const auto key_iter = std::find_if(
+                first_current_feature_lookup.begin(),
+                first_current_feature_lookup.end(),
+                [match](const auto& fcfl) { return fcfl.second == match.first; });
+
+            if (key_iter == first_current_feature_lookup.end())
+                continue;
+
+            const uint32_t key = key_iter->first;
+            feature_chain.at(key).push_back(match.second);
+
+            // append the current frame feature id, next iteration last frame id
+            last_frame_fids.push_back(match.second);
+        }
+
+        // check if enough triangulatable distance
+
+        // if enough movement, stop iterating and triangulate
+        throw std::runtime_error("todo");
+
+        last_frame = current_frame;
+        last_frame_descriptor = features::descriptor_from_feature_ids(current_frame->descriptors, last_frame_fids);
     }
 }
 
@@ -358,6 +526,8 @@ void LGraph::new_landmarks_from_matched(const std::shared_ptr<Frame> ref_frame,
             new_matches.push_back(m);
     }
 
+    // std::cout << "new landmarks: " << new_matches.size() << "\n";
+
     // std::cout << ref_frame->position.transpose() << ", " << frame->position.transpose() << "\n";
 
     create_landmarks_from_matches(ref_frame, frame, new_matches);
@@ -394,5 +564,5 @@ void LGraph::visualize_camera_tracks(const bool visualize_landmarks) const
         debug_cameras.push_back(lms_cloud);
     }
 
-    open3d::visualization::DrawGeometries(debug_cameras);
+    open3d::visualization::DrawGeometries(debug_cameras, "track visualization", 1920, 1080);
 }

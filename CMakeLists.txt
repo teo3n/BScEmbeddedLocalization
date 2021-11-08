@@ -17,6 +17,7 @@ set(SOURCES main.cpp
     src/constants.h
     src/debug_functions.h
     src/utilities.h
+    src/timer.h
 )
 
 
@@ -34,7 +35,7 @@ add_compile_options(-Wno-deprecated-declarations)
 add_compile_options(-Wno-unused-result)
 
 # add_definitions(-g -fopenmp)
-add_definitions(-O3 -fopenmp)
+#add_definitions(-O3 -fopenmp)
 
 message(STATUS "Found Open3D ${Open3D_VERSION} ${Open3D_LIBRARY_DIRS}")
 

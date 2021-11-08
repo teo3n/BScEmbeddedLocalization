@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <opencv2/calib3d.hpp>
 #include <opencv2/core/base.hpp>
 #include <opencv2/core/hal/interface.h>
 #include <opencv2/core/types.hpp>
@@ -154,6 +155,19 @@ inline cv::Mat get_individual_descriptor(const cv::Mat& desc, const uint32_t id)
     return idesc;
 }
 
+/**
+ * 	@brief composes a descriptor from a subset of feature ids
+ */
+inline cv::Mat descriptor_from_feature_ids(const cv::Mat& desc, const std::vector<uint32_t>& feature_ids)
+{
+	cv::Mat idesc (feature_ids.size(), desc.cols, desc.type());
+	
+	for (int ii = 0; ii < feature_ids.size(); ii++)
+		idesc.row(ii) = get_individual_descriptor(desc, feature_ids[ii]);
+
+	return idesc;
+}
+
 
 /**
  * 	@brief normalizes the frame, i.e. transfers it from image coordinates to uv [0, 1] coordinates
@@ -178,7 +192,7 @@ inline Eigen::Vector2d image2world(const Eigen::Vector2d& image_point, const cv:
  * 		multiview principles. Reduces the reprojection error and thus is 
  * 		more accurate, but is also considerably slower.
  */
-inline static cv::Point3f triangulate_multiview(const std::vector<cv::Point2f>& feature_points, 
+inline cv::Point3f triangulate_multiview(const std::vector<cv::Point2f>& feature_points, 
 		const std::vector<Mat34>& proj_matrices, const cv::Mat& intr = cv::Mat())
 {
 	if (proj_matrices.size() != feature_points.size())
@@ -197,6 +211,38 @@ inline static cv::Point3f triangulate_multiview(const std::vector<cv::Point2f>& 
   	}
 
   	Eigen::SelfAdjointEigenSolver<Eigen::Matrix4d> eigen_solver(A);
+
+	const Eigen::Vector3d p3d = eigen_solver.eigenvectors().col(0).hnormalized();
+	return cv::Point3f(p3d.x(), p3d.y(), p3d.z());
+}
+
+/**
+ * 	@brief solves the multiview triangulation problem by minimizing the L2 error, 
+ * 		the Eigen implementation. Taken from
+ * 		https://github.com/colmap/colmap/blob/9f3a75ae9c72188244f2403eb085e51ecf4397a8/src/base/triangulation.cc
+ */
+inline cv::Point3f triangulate_multiview_eigen(const std::vector<cv::Point2f>& feature_points, 
+	const std::vector<Mat34>& proj_matrices, const cv::Mat& intr = cv::Mat())
+{
+	std::vector<Eigen::Vector2d> feature_points_eigen;
+	feature_points_eigen.reserve(feature_points.size());
+	for (const auto& f : feature_points)
+	{
+		feature_points_eigen.emplace_back(Eigen::Vector2d(f.x, f.y));
+		// feature_points_eigen.back() = image2world(feature_points_eigen.back(), intr);
+	}
+
+	Eigen::Matrix4d A = Eigen::Matrix4d::Zero();
+
+	for (size_t i = 0; i < feature_points_eigen.size(); i++)
+	{
+		const Eigen::Vector3d point = feature_points_eigen[i].homogeneous().normalized();
+		const Mat34 term =
+		    proj_matrices[i] - point * point.transpose() * proj_matrices[i];
+		A += term.transpose() * term;
+	}
+
+	Eigen::SelfAdjointEigenSolver<Eigen::Matrix4d> eigen_solver(A);
 
 	const Eigen::Vector3d p3d = eigen_solver.eigenvectors().col(0).hnormalized();
 	return cv::Point3f(p3d.x(), p3d.y(), p3d.z());

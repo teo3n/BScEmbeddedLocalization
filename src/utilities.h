@@ -22,6 +22,10 @@
 namespace k3d::utilities
 {
 
+#define RAD2DEG(rad) (((rad) * 180)/M_PI)
+#define DEG2RAD(deg) (((deg) * M_PI)/180)
+
+
 /**
  * 	@brief restructures a buffer of data into shape
  */
@@ -125,29 +129,31 @@ inline bool point_in_front(const Mat34& pmat, const Eigen::Vector3d& p3d)
 /**
  *  @brief calculates the triangulation angle, to satisfy cheirality constraint
  *  @note borrowed from https://github.com/colmap/colmap/blob/9f3a75ae9c72188244f2403eb085e51ecf4397a8/src/base/triangulation.cc
+ *  @param proj_center1, the position of camera 1
+ *  @param proj_center2, the position of camera 2
+ *  @param point3d, the to-be-checked-for point
  */
 inline double calculate_triangulation_angle(const Eigen::Vector3d& proj_center1,
                                    const Eigen::Vector3d& proj_center2,
                                    const Eigen::Vector3d& point3d)
 {
-  const double baseline_length_squared = (proj_center1 - proj_center2).squaredNorm();
+    const double baseline_length_squared = (proj_center1 - proj_center2).squaredNorm();
 
-  const double ray_length_squared1 = (point3d - proj_center1).squaredNorm();
-  const double ray_length_squared2 = (point3d - proj_center2).squaredNorm();
-
-  // Using "law of cosines" to compute the enclosing angle between rays.
-  const double denominator = 2.0 * std::sqrt(ray_length_squared1 * ray_length_squared2);
-  if (denominator == 0.0)
-    return 0.0;
-
-  const double nominator = ray_length_squared1 + ray_length_squared2 - baseline_length_squared;
-  const double angle = std::abs(std::acos(nominator / denominator));
-
-  // Triangulation is unstable for acute angles (far away points) and
-  // obtuse angles (close points), so always compute the minimum angle
-  // between the two intersecting rays.
-  return std::min(angle, M_PI - angle);
+    const double ray_length_squared1 = (point3d - proj_center1).squaredNorm();
+    const double ray_length_squared2 = (point3d - proj_center2).squaredNorm();
+    
+    // Using "law of cosines" to compute the enclosing angle between rays.
+    const double denominator = 2.0 * std::sqrt(ray_length_squared1 * ray_length_squared2);
+    if (denominator == 0.0)
+        return 0.0;
+    
+    const double nominator = ray_length_squared1 + ray_length_squared2 - baseline_length_squared;
+    const double angle = std::abs(std::acos(nominator / denominator));
+    
+    // Triangulation is unstable for acute angles (far away points) and
+    // obtuse angles (close points), so always compute the minimum angle
+    // between the two intersecting rays.
+    return std::min(angle, M_PI - angle);
 }
-
 
 }

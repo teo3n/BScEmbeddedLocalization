@@ -78,16 +78,7 @@ int main()
    {
       const std::shared_ptr<cv::Mat> frame = std::make_shared<cv::Mat>(cv::imread("../assets/rock/rgb_" + std::to_string(ii) + ".png"));
       std::shared_ptr<Frame> ff = frame_from_rgb(frame, intr, dist);
-
       lgraph.localize_frame(ff);
-      try
-      {
-      }
-      catch (std::exception& e)
-      {
-         std::cout << "exception: " << e.what() << "\n";
-         break;
-      }
    }
 
    lgraph.visualize_camera_tracks(true);
