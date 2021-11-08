@@ -134,6 +134,13 @@ private:
         const std::shared_ptr<Frame> ref_frame, const std::shared_ptr<Frame> frame,
         const std::vector<std::pair<uint32_t, uint32_t>>& matches);
 
+
+    /**
+     *  @brief Create new landmarks between frame and suitably far-enough frame.
+     *      Does not check for duplicates.
+     */
+    void new_landmarks_standalone(const std::shared_ptr<Frame> frame, const cv::Point3f tr_angle_point);
+
     /**
      *  @brief Traverses the alredy localized frames backwards, and finds the first
      *      one with significant enough movement to be valid for triangulation

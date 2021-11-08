@@ -11,7 +11,7 @@ namespace k3d
 typedef Eigen::Matrix<double, 3, 4> Mat34;
 
 // specify the maximum number of features to be detected
-static const uint32_t ORB_FEATURE_COUNT = 2000;
+static const uint32_t ORB_FEATURE_COUNT = 10000;
 
 // specify the maximum distance the matches can have to be 
 // considered valid
@@ -31,7 +31,7 @@ static const uint32_t FLANN_MULTI_PROBE_LEVEL = 1;	// 2
 static const uint32_t MIN_MATCH_FEATURE_COUNT = 30;
 
 // the number of features, below which new landmarks are triangulated
-static const uint32_t MIN_MATCH_TRIANGULATE_NEW_COUNT = 75;
+static const uint32_t MIN_MATCH_TRIANGULATE_NEW_COUNT = 50;
 
 // the minimum amount of movement, which will be considered
 // good enough to be triangulated
@@ -48,7 +48,7 @@ static const double FRAME_POSITION_DISTANCE_DEVIATION = 1.0;
 static const double TRIANGULATE_DISTANCE_OUTLIER = 20.0;
 
 // the minimum angle (in degrees) between frames for triangulation
-static const double MIN_TRIANGULATION_ANGLE = 15.0;
+static const double MIN_TRIANGULATION_ANGLE = 5.0;
 
 // threshold, after which homography filtering is considered invalid
 static const double HOMOGRAPHY_FILTER_MAX_DIST = 3.0;
