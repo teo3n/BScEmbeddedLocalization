@@ -249,9 +249,12 @@ void LGraph::update_landmarks(const std::shared_ptr<Frame> frame,
 void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::shared_ptr<Frame> frame)
 {
     /**
-     *  - match against previous frame and find landmarks using lookup
-     *  - PnP
-     *  - new landmarks?
+     *  - match against previous frame
+     *  - take 3d points from previous frame
+     *  - pnp
+     *  - backpropagate the frames, pick one with enough movement
+     *  - triangualte 3d points for current-frame detected features
+     *  - rinse and repeat
      */
 
     std::vector<std::pair<uint32_t, uint32_t>> matches = 
