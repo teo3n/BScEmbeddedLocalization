@@ -35,7 +35,7 @@ static const uint32_t FLANN_MULTI_PROBE_LEVEL = 2;	// 2
 static const uint32_t MIN_MATCH_FEATURE_COUNT = 30;
 
 // the number of feature matches, below which new landmarks are triangulated
-static const uint32_t MIN_MATCH_TRIANGULATE_NEW_COUNT = 75;
+static const uint32_t MIN_MATCH_TRIANGULATE_NEW_COUNT = 125;
 
 // the minimum amount of movement, which will be considered
 // good enough to be triangulated
@@ -56,9 +56,14 @@ static const double HOMOGRAPHY_FILTER_MAX_DIST = 3.0;
 // ransac threshold used in calculating homography
 static const double HOMOGRAPHY_RANSAC_THRESHOLD = 2.5;
 
-// when backpropagating matches, how far in the feature match tree
-// should we go before the number of matches drops below a 
-// percentual threshold
-static const double STATISTICAL_FEATURE_COUNT = 0.5;
+static const uint32_t HOMOGRAPHY_MIN_FEATURE_COUNT = 9;
+
+// the k-d search tree depth used in reconstructing the 3D mesh
+static const uint32_t MESH_POISSON_DEPTH = 7;
+
+// Laplacian values used to smooth the generated mesh
+static const uint32_t LAPLACIAN_ITERATIONS = 3;
+static const float LAPLACIAN_LAMBDA = 0.75f;
+
 
 }

@@ -157,6 +157,8 @@ void LGraph::create_landmarks_from_matches(const std::shared_ptr<Frame> ref_fram
         const cv::Vec3b col = frame->rgb->at<cv::Vec3b>(x2[0].y, x2[0].x);
         lm.color = Eigen::Vector3d((float)(col.val[2]) / 255.0, (float)(col.val[1]) / 255.0, (float)(col.val[0]) / 255.0);
 
+        lm.normal = frame->position - Eigen::Vector3d(new_p3d.x, new_p3d.y, new_p3d.z);
+
         landmarks.push_back(lm);
 
         // <feature index, landmark index>
@@ -320,8 +322,7 @@ bool LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
     if (feature_points.size() < MIN_MATCH_TRIANGULATE_NEW_COUNT)
     {
         // std::cout << "low number of active landmarks reached, creating new ones\n";
-        new_landmarks_standalone(frame, lm_points);
-    }
+        new_landmarks_standalone(frame, lm_points);    }
 
     return true;
 }
@@ -448,7 +449,6 @@ void LGraph::new_landmarks_standalone(const std::shared_ptr<Frame> frame, const 
         for (int ii = frames.size() - 3; ii >= 0; ii--)
         {
             const double frame_angle = utilities::calculate_triangulation_angle(frames[ii]->position, frame->position, tr_point_eigen);
-            // std::cout << ii << ", " << RAD2DEG(frame_angle) << "\n";
 
             if (RAD2DEG(frame_angle) < MIN_TRIANGULATION_ANGLE)
                 continue;
@@ -468,7 +468,9 @@ void LGraph::new_landmarks_standalone(const std::shared_ptr<Frame> frame, const 
         features::match_features_bf_crosscheck(ref_frame->descriptors, frame->descriptors);
 #endif
 
-    // matches = homography_filter_matches(ref_frame, frame, matches);
+    // if (matches.size() > HOMOGRAPHY_MIN_FEATURE_COUNT)
+    //     matches = homography_filter_matches(ref_frame, frame, matches);
+    
     matches = features::radius_distance_filter_matches(matches, ref_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
 
     // DEBUG_visualize_matches(*ref_frame->rgb, *frame->rgb, matches, ref_frame->keypoints, frame->keypoints);
@@ -539,7 +541,7 @@ std::vector<std::pair<uint32_t, uint32_t>> LGraph::homography_filter_matches(
         const std::shared_ptr<Frame> ref_frame, const std::shared_ptr<Frame> frame,
         const std::vector<std::pair<uint32_t, uint32_t>>& matches)
 {
-    if (matches.size() < 9)
+    if (matches.size() < HOMOGRAPHY_MIN_FEATURE_COUNT)
         throw std::runtime_error("not enough matches for computing homography");
 
     std::vector<cv::Point2f> fpoints1, fpoints2;
@@ -699,7 +701,7 @@ void LGraph::new_landmarks_from_matched(const std::shared_ptr<Frame> ref_frame,
     create_landmarks_from_matches(ref_frame, frame, new_matches);
 }
 
-void LGraph::visualize_camera_tracks(const bool visualize_landmarks) const
+void LGraph::visualize_camera_tracks(const bool visualize_landmarks, bool generate_mesh) const
 {
     std::vector<std::shared_ptr<const open3d::geometry::Geometry>> debug_cameras;
 
@@ -718,16 +720,33 @@ void LGraph::visualize_camera_tracks(const bool visualize_landmarks) const
     {
         std::vector<Eigen::Vector3d> landmark_points;
         std::vector<Eigen::Vector3d> landmark_colors;
+        std::vector<Eigen::Vector3d> landmark_normals;
 
         for (const auto& lm : landmarks)
         {
             landmark_points.push_back(Eigen::Vector3d(lm.location.x, lm.location.y, lm.location.z));
             landmark_colors.push_back(lm.color);
+            landmark_normals.push_back(lm.normal);
         }
 
         auto lms_cloud = std::make_shared<open3d::geometry::PointCloud>(open3d::geometry::PointCloud(landmark_points));
         lms_cloud->colors_ = landmark_colors;
-        debug_cameras.push_back(lms_cloud);
+        lms_cloud->normals_ = landmark_normals;
+
+        if (generate_mesh)
+        {
+            // lms_cloud->EstimateNormals(open3d::geometry::KDTreeSearchParamHybrid(1.0, 16));
+
+            auto [new_mesh, trash] = open3d::geometry::TriangleMesh::CreateFromPointCloudPoisson(*lms_cloud, MESH_POISSON_DEPTH);
+            new_mesh = new_mesh->FilterSmoothLaplacian(LAPLACIAN_ITERATIONS, LAPLACIAN_LAMBDA);
+
+            debug_cameras.push_back(new_mesh);
+            // debug_cameras.push_back(lms_cloud);
+        }
+        else
+        {
+            debug_cameras.push_back(lms_cloud);
+        }
     }
 
     open3d::visualization::DrawGeometries(debug_cameras, "track visualization", 1920, 1080);

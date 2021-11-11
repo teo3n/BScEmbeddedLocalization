@@ -28,6 +28,7 @@
 // #include <opencv2/core/eigen.hpp>
 
 #include "constants.h"
+#include "timer.h"
 
 
 namespace k3d::features
@@ -99,18 +100,19 @@ inline std::vector<std::pair<uint32_t, uint32_t>> match_features_bf_crosscheck(c
 inline std::vector<std::pair<uint32_t, uint32_t>> 
 	match_features_flann(const cv::Mat& desc1, const cv::Mat& desc2, const float distance_ratio = KNN_DISTANCE_RATIO)
 {
+	Timer t;
 	std::vector<std::pair<uint32_t, uint32_t>> feature_matches;
 	std::vector<std::vector<cv::DMatch>> knn_matches;
+	feature_matches.reserve(knn_matches.size());
 
 	flann_matcher.knnMatch(desc1, desc2, knn_matches, 2);
-	feature_matches.reserve(knn_matches.size());
 
 	for (uint32_t ii = 0; ii < knn_matches.size(); ii++)
 	{
 		// still no idea why it even could be 0, but it happens _sometimes_
 		// when using a subset of indices
-		// if (knn_matches[ii].empty())
-		// 	continue;
+		if (knn_matches[ii].empty())
+			continue;
 
 		// do a distance check
 		if (knn_matches[ii][0].distance < distance_ratio * knn_matches[ii][1].distance)

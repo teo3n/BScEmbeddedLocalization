@@ -87,7 +87,7 @@ int main()
          break;
    }
 
-   lgraph.visualize_camera_tracks(true);
+   lgraph.visualize_camera_tracks(true, true);
 
    return 0;
 }

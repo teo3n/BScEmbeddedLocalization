@@ -45,6 +45,8 @@ struct Landmark
     std::vector<cv::Point2f> triangulate_2d_points;
 
     Eigen::Vector3d color;
+
+    Eigen::Vector3d normal;
 };
 
 class LGraph
@@ -64,7 +66,7 @@ public:
     /**
      *  @brief Visualizes the camera tracks
      */
-    void visualize_camera_tracks(const bool visualize_landmarks = false) const;
+    void visualize_camera_tracks(const bool visualize_landmarks = false, bool generate_mesh = false) const;
 
 private:
 
