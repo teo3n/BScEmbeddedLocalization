@@ -74,11 +74,17 @@ int main()
    LGraph lgraph;
    lgraph.localize_frame(f1);
 
+   int fail_count = 0;
+
    for (int ii = 35; ii < 200; ii++)
    {
       const std::shared_ptr<cv::Mat> frame = std::make_shared<cv::Mat>(cv::imread("../assets/rock/rgb_" + std::to_string(ii) + ".png"));
       std::shared_ptr<Frame> ff = frame_from_rgb(frame, intr, dist);
-      lgraph.localize_frame(ff);
+      if (!lgraph.localize_frame(ff))
+         fail_count++;
+
+      if (fail_count > 5)
+         break;
    }
 
    lgraph.visualize_camera_tracks(true);

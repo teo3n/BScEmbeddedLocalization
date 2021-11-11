@@ -59,7 +59,7 @@ public:
      *  @brief Adds a new frame into the graph and 
      *      localizes it in respect to previous frames
      */
-    void localize_frame(std::shared_ptr<Frame> frame);
+    bool localize_frame(std::shared_ptr<Frame> frame);
 
     /**
      *  @brief Visualizes the camera tracks
@@ -69,16 +69,29 @@ public:
 private:
 
     /**
+     *  @brief Ensures 2D-3D correspondences can be found. 
+     *      Uses ref_frame -> frame matches to backpropagate ref_frame
+     *      features to 3D landmarks
+     *  @return The found 2D-3D correspondences, in reference to frame. <2dfeature, 3dlm>
+     */
+    std::vector<std::pair<uint32_t, uint32_t>> backpropagate_future_matches(const std::shared_ptr<Frame> ref_frame,
+        const std::shared_ptr<Frame> frame,
+        const std::vector<std::pair<uint32_t, uint32_t>>& matches);
+
+    std::vector<std::pair<uint32_t, uint32_t>> find_landmark_feature_matches(const std::shared_ptr<Frame> ref_frame,
+        const std::vector<std::pair<uint32_t, uint32_t>>& matches);
+
+    /**
      *  @brief Localizes a frame in reference to ref_frame
      *  @return <position, rotation_matrix>
      */
-    void localize_frame_essential(const std::shared_ptr<Frame> ref_frame, std::shared_ptr<Frame> frame);
+    bool localize_frame_essential(const std::shared_ptr<Frame> ref_frame, std::shared_ptr<Frame> frame);
 
     /**
      *  @brief Localized a frame using the PnP algorithm
      *  @return <position, rotation matrix>
      */
-    void localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::shared_ptr<Frame> frame);
+    bool localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::shared_ptr<Frame> frame);
 
     /**
      *  @brief Creates new landmarks from feature matches
@@ -139,7 +152,7 @@ private:
      *  @brief Create new landmarks between frame and suitably far-enough frame.
      *      Does not check for duplicates.
      */
-    void new_landmarks_standalone(const std::shared_ptr<Frame> frame, const cv::Point3f tr_angle_point);
+    void new_landmarks_standalone(const std::shared_ptr<Frame> frame, const std::vector<cv::Point3f>& tr_angle_points);
 
     /**
      *  @brief Traverses the alredy localized frames backwards, and finds the first

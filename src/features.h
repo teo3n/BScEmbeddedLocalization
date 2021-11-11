@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <opencv2/calib3d.hpp>
@@ -106,6 +107,11 @@ inline std::vector<std::pair<uint32_t, uint32_t>>
 
 	for (uint32_t ii = 0; ii < knn_matches.size(); ii++)
 	{
+		// still no idea why it even could be 0, but it happens _sometimes_
+		// when using a subset of indices
+		// if (knn_matches[ii].empty())
+		// 	continue;
+
 		// do a distance check
 		if (knn_matches[ii][0].distance < distance_ratio * knn_matches[ii][1].distance)
 			feature_matches.push_back(std::make_pair(knn_matches[ii][0].queryIdx, knn_matches[ii][0].trainIdx));
@@ -113,6 +119,26 @@ inline std::vector<std::pair<uint32_t, uint32_t>>
 
 	feature_matches.shrink_to_fit();
 	return feature_matches;
+}
+
+inline std::vector<std::pair<uint32_t, uint32_t>> take_only_indexed_matches(
+	const std::vector<std::pair<uint32_t, uint32_t>>& matches, const std::vector<uint32_t>& feature_ids)
+{
+	std::vector<std::pair<uint32_t, uint32_t>> filtered;
+	filtered.reserve(feature_ids.size());
+
+	for (const auto& m : matches)
+	{
+		if (std::find_if(feature_ids.begin(), feature_ids.end(), [&m] (uint32_t elem) {
+			return m.second == elem;
+		}) != feature_ids.end())
+		{
+			filtered.push_back(m);
+		}
+	}
+
+	filtered.shrink_to_fit();
+	return filtered;
 }
 
 /**
@@ -160,12 +186,39 @@ inline cv::Mat get_individual_descriptor(const cv::Mat& desc, const uint32_t id)
  */
 inline cv::Mat descriptor_from_feature_ids(const cv::Mat& desc, const std::vector<uint32_t>& feature_ids)
 {
-	cv::Mat idesc (feature_ids.size(), desc.cols, desc.type());
-	
+	cv::Mat idesc (cv::Size(desc.cols, feature_ids.size()), desc.type());
+
 	for (int ii = 0; ii < feature_ids.size(); ii++)
-		idesc.row(ii) = get_individual_descriptor(desc, feature_ids[ii]);
+	{
+		// idesc.row(ii) = get_individual_descriptor(desc, feature_ids[ii]);
+
+		// const uint8_t* mat_i = desc.ptr<uint8_t>(feature_ids[ii], 0);
+		// uint8_t* idesc_ptr = idesc.ptr<uint8_t>(ii, 0);
+
+		// for (int jj = 0; jj < desc.cols; jj++)
+		// 	idesc_ptr[jj] = mat_i [jj];
+
+		desc.row(feature_ids[ii]).copyTo(idesc.row(ii));
+		// std::cout << "1: " << idesc.row(ii) << "\n2: " << desc.row(feature_ids[ii]) << "\n";
+	}
 
 	return idesc;
+}
+
+/**
+ * 	@brief Fixes the indexing of <matches.first> from subset indices to 
+ * 			whole vector indices
+ */
+inline void feature_subset_indices_to_whole(const std::vector<uint32_t>& subset_ids, std::vector<std::pair<uint32_t, uint32_t>>& matches,
+	const bool is_first = true)
+{
+	for (int ii = 0; ii < matches.size(); ii++)
+	{
+		if (is_first)
+			matches[ii].first = subset_ids[ii];
+		else
+			matches[ii].second = subset_ids[ii];
+	}
 }
 
 

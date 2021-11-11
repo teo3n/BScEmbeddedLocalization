@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <fmt/format.h>
+#include <iostream>
 #include <memory>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core.hpp>
@@ -25,39 +26,33 @@ LGraph::LGraph()
     // identity_mat = utilities::restrucure_mat<double>(identity_vec, 3, 3);
 }
 
-void LGraph::localize_frame(std::shared_ptr<Frame> frame)
+bool LGraph::localize_frame(std::shared_ptr<Frame> frame)
 {
-    // const std::vector<std::pair<uint32_t, uint32_t>> kp_matches = 
-	   //  // match_features_bf_crosscheck(desc1, desc2);
-    //     match_features_flann(desc1, desc2, KNN_DISTANCE_RATIO);
-
-    // DEBUG_visualize_matches(frame1, frame2, kp_matches, keypoints1, keypoints2);
-
-    /**
-     *  
-     */
-
-
-	this->frames.push_back(frame);
+	frames.push_back(frame);
 
     // cannot localize if only 1 frame
     if (frames.size() == 1)
-        return;
+        return true;
 
     // localize using essential matrix decomposition
     else if (frames.size() == 2)
-        localize_frame_essential(frames[0], frame);
+        return localize_frame_essential(frames[0], frame);
 
     // localize using PnP
     else
-        localize_frame_pnp(frames[frames.size() - 2], frame);
+        return localize_frame_pnp(frames[frames.size() - 2], frame);
 }
 
 
-void LGraph::localize_frame_essential(const std::shared_ptr<Frame> ref_frame, std::shared_ptr<Frame> frame)
+bool LGraph::localize_frame_essential(const std::shared_ptr<Frame> ref_frame, std::shared_ptr<Frame> frame)
 {
-    std::vector<std::pair<uint32_t, uint32_t>> matches = features::match_features_bf_crosscheck(
-        ref_frame->descriptors, frame->descriptors);
+    std::vector<std::pair<uint32_t, uint32_t>> matches = 
+#if defined USE_FLANN_ESSENTIAL
+        features::match_features_flann(ref_frame->descriptors, frame->descriptors);
+#else
+        features::match_features_bf_crosscheck(ref_frame->descriptors, frame->descriptors);
+#endif
+
     matches = features::radius_distance_filter_matches(matches, ref_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
 
 
@@ -106,6 +101,8 @@ void LGraph::localize_frame_essential(const std::shared_ptr<Frame> ref_frame, st
     create_landmarks_from_matches(ref_frame, frame, matches);
 
     // visualize_camera_tracks(true);
+
+    return true;
 }
 
 void LGraph::create_landmarks_from_matches(const std::shared_ptr<Frame> ref_frame, 
@@ -248,10 +245,15 @@ void LGraph::update_landmarks(const std::shared_ptr<Frame> frame,
     }
 }
 
-void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::shared_ptr<Frame> frame)
+bool LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::shared_ptr<Frame> frame)
 {
     std::vector<std::pair<uint32_t, uint32_t>> matches = 
+#if defined USE_FLANN
+        features::match_features_flann(prev_frame->descriptors, frame->descriptors);
+#else
         features::match_features_bf_crosscheck(prev_frame->descriptors, frame->descriptors);
+#endif
+
     // matches = features::radius_distance_filter_matches(matches, prev_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
     matches = homography_filter_matches(prev_frame, frame, matches);
 
@@ -261,36 +263,22 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
     std::vector<cv::Point3f> lm_points;
     std::vector<uint32_t> lm_ids;
     std::vector<cv::Point2f> feature_points;
-    std::vector<uint32_t> feature_ids, feature_ids_inv, prev_feature_ids_inv;
+    std::vector<uint32_t> feature_ids;
 
-    // collect landmark point ids and current frame feature point ids
-    // find prev-current matched form prev-landmarks
-    for (const auto& flm : prev_frame->feature_landmark_lookup)
+    for (const auto& lfc : find_landmark_feature_matches(prev_frame, matches))
     {
-        for (const auto& match : matches)
-        {
-            // feature match was found in landmark lookup
-            if (match.first == flm.first)
-            {
-                feature_points.push_back(frame->keypoints[match.second].pt);
-                feature_ids.push_back(match.second);
+        feature_points.push_back(frame->keypoints[lfc.first].pt);
+        feature_ids.push_back(lfc.first);
 
-                lm_points.push_back(landmarks[flm.second].location);
-                lm_ids.push_back(flm.second);
-            }
-            else
-            {
-                prev_feature_ids_inv.push_back(match.first);
-                feature_ids_inv.push_back(match.second);
-            }
-        }
+        lm_points.push_back(landmarks[lfc.second].location);
+        lm_ids.push_back(lfc.second);
     }
 
     if (feature_points.size() < MIN_MATCH_FEATURE_COUNT)
     {
         std::cout << "could not localize frame, not enough matches: " << feature_points.size() << "\n";
         this->frames.pop_back();
-        return;
+        return false;
     }
 
     cv::undistortPoints(feature_points, feature_points, frame->params.intr, frame->params.distortion, cv::noArray(), frame->params.intr);
@@ -323,7 +311,7 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
             " compared to the previous frame pose of " << prev_frame->position.transpose() << "\n";
 
         frames.pop_back();
-        return;
+        return false;
     }
 
     // update matched landmarks using lookup
@@ -331,12 +319,113 @@ void LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
 
     if (feature_points.size() < MIN_MATCH_TRIANGULATE_NEW_COUNT)
     {
-        std::cout << "low number of active landmarks reached, creating new ones\n";
-        new_landmarks_standalone(frame, lm_points[0]);
+        // std::cout << "low number of active landmarks reached, creating new ones\n";
+        new_landmarks_standalone(frame, lm_points);
     }
+
+    return true;
 }
 
-void LGraph::new_landmarks_standalone(const std::shared_ptr<Frame> frame, const cv::Point3f tr_angle_point)
+std::vector<std::pair<uint32_t, uint32_t>> LGraph::find_landmark_feature_matches(const std::shared_ptr<Frame> ref_frame,
+        const std::vector<std::pair<uint32_t, uint32_t>>& matches)
+{
+    // <2d feature, 3d landmark>
+    std::vector<std::pair<uint32_t, uint32_t>> feature_lm_correspondences;
+    feature_lm_correspondences.reserve(std::min(matches.size(), ref_frame->feature_landmark_lookup.size()));
+
+
+    for (const auto& flm : ref_frame->feature_landmark_lookup)
+    {
+        for (const auto& match : matches)
+        {
+            // feature match was found in landmark lookup
+            if (match.first == flm.first)
+                feature_lm_correspondences.push_back(std::make_pair(match.second, flm.second));
+        }
+    }
+
+    feature_lm_correspondences.shrink_to_fit();
+    return feature_lm_correspondences;
+}
+
+std::vector<std::pair<uint32_t, uint32_t>> LGraph::backpropagate_future_matches(const std::shared_ptr<Frame> ref_frame,
+        const std::shared_ptr<Frame> frame,
+        const std::vector<std::pair<uint32_t, uint32_t>>& matches)
+{
+    throw std::runtime_error("this does not work, to the surprise of absolutely no one ");
+
+    // <2d feature, 3d landmark>
+    std::vector<std::pair<uint32_t, uint32_t>> feature_lm_correspondences;
+    std::vector<uint32_t> ref_feature_ids;
+    feature_lm_correspondences.reserve(std::min(matches.size(), ref_frame->feature_landmark_lookup.size()));
+
+    // collect landmark point ids and current frame feature point ids
+    // find prev-current matched form prev-landmarks
+    for (const auto& flm : ref_frame->feature_landmark_lookup)
+    {
+        for (const auto& match : matches)
+        {
+            // feature match was found in landmark lookup
+            if (match.first == flm.first)
+            {
+                feature_lm_correspondences.push_back(std::make_pair(match.second, flm.second));
+                ref_feature_ids.push_back(match.first);
+            }
+        }
+    }
+
+    // not enough matches, backpropagate new ones
+    // if (feature_lm_correspondences.size() < MIN_MATCH_FEATURE_COUNT)
+    if (frames.size() > 5)
+    {
+        std::vector<std::pair<uint32_t, uint32_t>> new_matches;
+        std::shared_ptr<Frame> latest_frame;
+
+        // find a frame until STATISTICAL_FEATURE_COUNT condition not met
+        for (int ii = frames.size() - 4; ii >= 0; ii--)
+        {
+            latest_frame = frames[ii];
+
+            new_matches = features::match_features_flann(latest_frame->descriptors, ref_frame->descriptors);
+            new_matches = features::take_only_indexed_matches(new_matches, ref_feature_ids);
+
+            // new_matches = features::match_features_bf_crosscheck(latest_frame->descriptors, ref_desc);
+
+            // new_matches = homography_filter_matches(latest_frame, ref_frame, new_matches);
+            // new_matches = features::radius_distance_filter_matches(new_matches, ref_frame->keypoints, latest_frame->keypoints, FEATURE_DIST_MAX_RADIUS);
+
+            // DEBUG_visualize_matches(*latest_frame->rgb, *ref_frame->rgb, new_matches, latest_frame->keypoints, ref_frame->keypoints);
+
+            // std::cout << ref_feature_ids.size() << ", " << new_matches.size() << ", " << matches.size() << "\n";
+
+            // frame found, stop searching
+            if (new_matches.size() < 250)
+                break;
+        }
+
+        feature_lm_correspondences.shrink_to_fit();
+        create_landmarks_from_matches(latest_frame, frame, new_matches);
+
+        feature_lm_correspondences.clear();
+
+        for (const auto& flm : ref_frame->feature_landmark_lookup)
+        {
+            for (const auto& match : matches)
+            {
+                // feature match was found in landmark lookup
+                if (match.first == flm.first)
+                {
+                    feature_lm_correspondences.push_back(std::make_pair(match.second, flm.second));
+                    ref_feature_ids.push_back(match.first);
+                }
+            }
+        }
+    }
+
+    return feature_lm_correspondences;
+}
+
+void LGraph::new_landmarks_standalone(const std::shared_ptr<Frame> frame, const std::vector<cv::Point3f>& tr_angle_points)
 {
     /**
      *  - find a triangulatable frame
@@ -346,13 +435,20 @@ void LGraph::new_landmarks_standalone(const std::shared_ptr<Frame> frame, const 
      */
 
     std::shared_ptr<Frame> ref_frame = nullptr;
-    const Eigen::Vector3d tr_point_eigen (tr_angle_point.x, tr_angle_point.y, tr_angle_point.z);
+    const Eigen::Vector3d tr_point_eigen = [&tr_angle_points] {
+        cv::Point3f trp (0.0, 0.0, 0.0);
+        for (const auto& p : tr_angle_points)
+            trp += p;
+        return Eigen::Vector3d(trp.x, trp.y, trp.z);
 
-    if (frames.size() <= 4)
+    }();
+
+    if (frames.size() > 4)
     {
         for (int ii = frames.size() - 3; ii >= 0; ii--)
         {
             const double frame_angle = utilities::calculate_triangulation_angle(frames[ii]->position, frame->position, tr_point_eigen);
+            // std::cout << ii << ", " << RAD2DEG(frame_angle) << "\n";
 
             if (RAD2DEG(frame_angle) < MIN_TRIANGULATION_ANGLE)
                 continue;
@@ -366,12 +462,19 @@ void LGraph::new_landmarks_standalone(const std::shared_ptr<Frame> frame, const 
         ref_frame = frames[0];
 
     std::vector<std::pair<uint32_t, uint32_t>> matches = 
+#if defined USE_FLANN
+        features::match_features_flann(ref_frame->descriptors, frame->descriptors);
+#else
         features::match_features_bf_crosscheck(ref_frame->descriptors, frame->descriptors);
-    matches = homography_filter_matches(ref_frame, frame, matches);
-    matches = features::radius_distance_filter_matches(matches, ref_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS * 2);
+#endif
+
+    // matches = homography_filter_matches(ref_frame, frame, matches);
+    matches = features::radius_distance_filter_matches(matches, ref_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
 
     // DEBUG_visualize_matches(*ref_frame->rgb, *frame->rgb, matches, ref_frame->keypoints, frame->keypoints);
     // visualize_camera_tracks(true);
+
+    std::cout << "created new landmarks: " << matches.size() << "\n";
 
     // create landmarks and add to feature_landmark_lookup
     create_landmarks_from_matches(ref_frame, frame, matches);
