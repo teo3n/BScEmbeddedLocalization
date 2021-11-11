@@ -154,8 +154,8 @@ void LGraph::create_landmarks_from_matches(const std::shared_ptr<Frame> ref_fram
             continue;
 
         lm.location = new_p3d;
-        const cv::Vec3b col = frame->rgb->at<cv::Vec3b>(x2[0].x, x2[0].y);
-        lm.color = Eigen::Vector3d((float)col.val[2] / 255.0, (float)col.val[1] / 255.0, (float)col.val[0] / 255.0);
+        const cv::Vec3b col = frame->rgb->at<cv::Vec3b>(x2[0].y, x2[0].x);
+        lm.color = Eigen::Vector3d((float)(col.val[2]) / 255.0, (float)(col.val[1]) / 255.0, (float)(col.val[0]) / 255.0);
 
         landmarks.push_back(lm);
 
