@@ -509,31 +509,7 @@ void LGraph::new_landmarks_standalone(const std::shared_ptr<Frame> frame, const 
      *  - add to frame->feature_landmark_lookup
      */
 
-    std::shared_ptr<Frame> ref_frame = nullptr;
-    const Eigen::Vector3d tr_point_eigen = [&tr_angle_points] {
-        cv::Point3f trp (0.0, 0.0, 0.0);
-        for (const auto& p : tr_angle_points)
-            trp += p;
-        return Eigen::Vector3d(trp.x, trp.y, trp.z);
-
-    }();
-
-    if (frames.size() > 4)
-    {
-        for (int ii = frames.size() - 3; ii >= 0; ii--)
-        {
-            const double frame_angle = utilities::calculate_triangulation_angle(frames[ii]->position, frame->position, tr_point_eigen);
-
-            if (RAD2DEG(frame_angle) < MIN_TRIANGULATION_ANGLE)
-                continue;
-
-            ref_frame = frames[ii];
-            break;
-        }
-    }
-
-    if (!ref_frame)
-        ref_frame = frames[0];
+    std::shared_ptr<Frame> ref_frame = find_triangulatable_point_frame(frame, tr_angle_points);
 
     std::vector<std::pair<uint32_t, uint32_t>> matches = 
 #if defined USE_FLANN
@@ -749,11 +725,12 @@ std::shared_ptr<Frame> LGraph::find_triangulatable_point_frame(const std::shared
 {
     const Eigen::Vector3d current_pos = frame->position;
 
+    // take the average of all of the triangulated points
     const Eigen::Vector3d tr_point_eigen = [&tr_angle_points] {
         cv::Point3f trp (0.0, 0.0, 0.0);
         for (const auto& p : tr_angle_points)
             trp += p;
-        return Eigen::Vector3d(trp.x, trp.y, trp.z);
+        return Eigen::Vector3d(trp.x, trp.y, trp.z) / (double)tr_angle_points.size();
 
     }();
 
@@ -766,7 +743,7 @@ std::shared_ptr<Frame> LGraph::find_triangulatable_point_frame(const std::shared
         if (RAD2DEG(frame_angle) < angle_threshold)
             continue;
 
-        std::cout << "use frame id " << ii << " for triangulation\n";
+        std::cout << "use frame id " << ii << " for triangulation, current frame is " << frames.size() - 1 << "\n";
         return ref_frame;
     }
 

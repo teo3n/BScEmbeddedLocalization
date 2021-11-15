@@ -53,11 +53,11 @@ static const double FRAME_POSITION_DISTANCE_DEVIATION = 1.0;
 static const double TRIANGULATE_DISTANCE_OUTLIER = 20.0;
 
 // the minimum angle (in degrees) between frames for triangulation
-static const double MIN_TRIANGULATION_ANGLE = 0.4;
+static const double MIN_TRIANGULATION_ANGLE = 15.0;
 
 // the minimum angle (in degrees) between frames for triangulation,
 // used when projecting more points
-static const double MIN_TRIANGULATION_ANGLE_LIBERAL = 0.1;
+static const double MIN_TRIANGULATION_ANGLE_LIBERAL = 7.5;
 
 // threshold, after which homography filtering is considered invalid
 static const double HOMOGRAPHY_FILTER_MAX_DIST = 3.0;
