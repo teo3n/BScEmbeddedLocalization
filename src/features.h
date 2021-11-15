@@ -37,6 +37,7 @@ namespace k3d::features
 
 // no reason to use unnecessary classes, just define as static
 static cv::Ptr<cv::ORB> orb_detector;
+static cv::Ptr<cv::ORB> orb_detector_dense;
 
 // use a brute force matcher with cross_check enabled for best results
 static cv::BFMatcher bf_matcher (cv::NORM_HAMMING, true);
@@ -50,18 +51,23 @@ static cv::FlannBasedMatcher flann_matcher
  * 		features detection algorithm
  * 	@return [<detected keypoints, computed descriptors>]
  */
-inline std::tuple<std::vector<cv::KeyPoint>, cv::Mat> detect_features_orb(const std::shared_ptr<cv::Mat> frame)
+inline std::tuple<std::vector<cv::KeyPoint>, cv::Mat> detect_features_orb(const std::shared_ptr<cv::Mat> frame, const bool dense = false)
 {
 	std::vector<cv::KeyPoint> kp_features;
 
 	if (!orb_detector)
 	{
 		orb_detector = cv::ORB::create(ORB_FEATURE_COUNT);
-		std::cout << "initialized ORB detector\n";
+		orb_detector_dense = cv::ORB::create(ORB_FEATURE_COUNT_DENSE);
+
+		std::cout << "initialized ORB detectors\n";
 	}
 
 	cv::Mat descriptors;
-	orb_detector->detectAndCompute(*frame, cv::noArray(), kp_features, descriptors);	
+	if (!dense)
+		orb_detector->detectAndCompute(*frame, cv::noArray(), kp_features, descriptors);
+	else	
+		orb_detector_dense->detectAndCompute(*frame, cv::noArray(), kp_features, descriptors);	
 
 	return std::make_tuple(kp_features, descriptors);
 }

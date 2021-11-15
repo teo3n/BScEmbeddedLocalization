@@ -344,10 +344,14 @@ bool LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
 
 void LGraph::project_more_points(const std::shared_ptr<Frame> ref_frame, const std::shared_ptr<Frame> frame)
 {
-    std::vector<std::pair<uint32_t, uint32_t>> matches = 
-        features::match_features_flann(ref_frame->descriptors, frame->descriptors, KNN_DISTANCE_RATIO_LIBERAL);
+    // compute dense features
+    const auto [ref_kps, ref_desc] = features::detect_features_orb(ref_frame->rgb, true);
+    const auto [frame_kps, frame_desc] = features::detect_features_orb(frame->rgb, true);
 
-    matches = features::radius_distance_filter_matches(matches, ref_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
+    std::vector<std::pair<uint32_t, uint32_t>> matches = 
+        features::match_features_flann(ref_desc, frame_desc, KNN_DISTANCE_RATIO_LIBERAL);
+
+    matches = features::radius_distance_filter_matches(matches, ref_kps, frame_kps, FEATURE_DIST_MAX_RADIUS);
     // matches = homography_filter_matches(ref_frame, frame, matches);
 
     // DEBUG_visualize_matches(*ref_frame->rgb, *frame->rgb, matches, ref_frame->keypoints, frame->keypoints);
@@ -356,8 +360,8 @@ void LGraph::project_more_points(const std::shared_ptr<Frame> ref_frame, const s
 
     for (const auto& m : matches)
     {
-        x1.push_back(ref_frame->keypoints[m.first].pt);
-        x2.push_back(frame->keypoints[m.second].pt);
+        x1.push_back(ref_kps[m.first].pt);
+        x2.push_back(frame_kps[m.second].pt);
     }
 
     cv::undistortPoints(x1, x1, frame->params.intr, frame->params.distortion, cv::noArray(), frame->params.intr);
@@ -467,7 +471,7 @@ std::vector<std::pair<uint32_t, uint32_t>> LGraph::backpropagate_future_matches(
             // new_matches = features::match_features_bf_crosscheck(latest_frame->descriptors, ref_desc);
 
             // new_matches = homography_filter_matches(latest_frame, ref_frame, new_matches);
-            // new_matches = features::radius_distance_filter_matches(new_matches, ref_frame->keypoints, latest_frame->keypoints, FEATURE_DIST_MAX_RADIUS);
+            // new_matches = features::radius_distance_filter_matches(new_matches, ref_kps, latest_frame->keypoints, frame_kps;
 
             // DEBUG_visualize_matches(*latest_frame->rgb, *ref_frame->rgb, new_matches, latest_frame->keypoints, ref_frame->keypoints);
 
@@ -905,16 +909,18 @@ void LGraph::visualize_camera_tracks(const bool visualize_landmarks, bool genera
 
         if (generate_mesh)
         {
-            // lms_cloud->EstimateNormals(open3d::geometry::KDTreeSearchParamHybrid(1.0, 16));
-
             auto mesh_cloud = std::make_shared<open3d::geometry::PointCloud>(open3d::geometry::PointCloud(extra_3d_points));
             mesh_cloud->colors_ = extra_3d_points_colors;
             mesh_cloud->normals_ = extra_3d_points_normals;
 
             *mesh_cloud += *lms_cloud;
 
+            // mesh_cloud->EstimateNormals(open3d::geometry::KDTreeSearchParamHybrid(0.5, 16));
+
             auto [new_mesh, trash] = open3d::geometry::TriangleMesh::CreateFromPointCloudPoisson(*mesh_cloud, MESH_POISSON_DEPTH);
             new_mesh = new_mesh->FilterSmoothLaplacian(LAPLACIAN_ITERATIONS, LAPLACIAN_LAMBDA);
+
+            // new_mesh->Translate(Eigen::Vector3d(0.0, 20.0, 0.0));
 
             debug_cameras.push_back(new_mesh);
             // debug_cameras.push_back(mesh_cloud);
