@@ -15,6 +15,7 @@
 #include <opencv2/core/base.hpp>
 #include <opencv2/core/hal/interface.h>
 #include <opencv2/core/types.hpp>
+#include <opencv2/flann/miniflann.hpp>
 #include <stdexcept>
 #include <sys/types.h>
 #include <tuple>

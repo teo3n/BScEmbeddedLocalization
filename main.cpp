@@ -20,6 +20,7 @@
 #include "src/constants.h"
 #include "src/utilities.h"
 #include "src/camera_module.h"
+#include "src/timer.h"
 #include "src/features.h"
 #include "src/debug_functions.h"
 #include "src/localization_graph.h"
@@ -78,13 +79,18 @@ int main()
 
    for (int ii = 35; ii < 200; ii++)
    {
+      Timer t;
+
       const std::shared_ptr<cv::Mat> frame = std::make_shared<cv::Mat>(cv::imread("../assets/rock/rgb_" + std::to_string(ii) + ".png"));
       std::shared_ptr<Frame> ff = frame_from_rgb(frame, intr, dist);
+      t.stop("acquire frame");
       if (!lgraph.localize_frame(ff))
          fail_count++;
 
       if (fail_count > 5)
          break;
+
+      t.stop("localize frame");
    }
 
    lgraph.visualize_camera_tracks(true, true);

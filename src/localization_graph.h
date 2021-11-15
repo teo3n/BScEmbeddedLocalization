@@ -20,6 +20,7 @@
 
 #include <opencv2/core.hpp>
 #include <opencv2/calib3d.hpp>
+#include <opencv2/imgproc.hpp>
 #include <opencv2/core/eigen.hpp>
 
 #include <Open3D/Open3D.h>
@@ -160,11 +161,40 @@ private:
      *  @brief Traverses the alredy localized frames backwards, and finds the first
      *      one with significant enough movement to be valid for triangulation
      */
-    std::shared_ptr<Frame> find_triangulatable_movement_frame(const std::shared_ptr<Frame> frame);
+    std::shared_ptr<Frame> find_triangulatable_movement_frame(const std::shared_ptr<Frame> frame,
+        const double angle_threshold = TRIANGULATE_DIST_DIFF_MAGNITUDE);
+
+    /**
+     *  @brief Traverses the already localized frames backwards, and find the first 
+     *      frame, which where tr_angle_point can be triangulated with at least difference of 
+     *      angle_threshold. If no frame was found, return the first frame.
+     */
+    std::shared_ptr<Frame> find_triangulatable_point_frame(const std::shared_ptr<Frame> frame,
+        const std::vector<cv::Point3f>& tr_angle_points, const double angle_threshold = MIN_TRIANGULATION_ANGLE);
+
+    /**
+     *  @brief Generates disparity maps from stereo correspondences and projects
+     *      them into 3D points. Not really usable without extreme filtering due to
+     *      highly noisy disparity maps in this case.
+     */
+    void project_dense_depth_points(const std::shared_ptr<Frame> ref_frame, const std::shared_ptr<Frame> frame);
+
+    /**
+     *  @brief Projects more 3D points more liberally and with minimal filtering.
+     *      Quality not guaranteed.
+     */
+    void project_more_points(const std::shared_ptr<Frame> ref_frame, const std::shared_ptr<Frame> frame);
 
     std::vector<std::shared_ptr<Frame>> frames;
 
     std::vector<Landmark> landmarks;
+
+    /**
+     *  Extra 3D points, not used in frame localization
+     */
+    std::vector<Eigen::Vector3d> extra_3d_points;
+    std::vector<Eigen::Vector3d> extra_3d_points_colors;
+    std::vector<Eigen::Vector3d> extra_3d_points_normals;
     
 };
 

@@ -24,12 +24,17 @@ static const float MATCH_MAX_DISTANCE = 120.f;
 // specify by how many pixels can a pixel's position differ
 static const float FEATURE_DIST_MAX_RADIUS = 80.f;
 
+// the nearest-neighbour distance ratio, used in feature match distance check
 static const float KNN_DISTANCE_RATIO = 0.7f;
+
+// used when only a large quantity of matches is required,
+// quality may be dubious
+static const float KNN_DISTANCE_RATIO_LIBERAL = 0.85f;
 
 // index parameters for the flann based matcher		// default
 static const uint32_t FLANN_TABLE_NUMBER = 12; 		// 12
 static const uint32_t FLANN_KEY_SIZE = 20;			// 20
-static const uint32_t FLANN_MULTI_PROBE_LEVEL = 2;	// 2
+static const uint32_t FLANN_MULTI_PROBE_LEVEL = 1;	// 2
 
 // the minimum number of feature matches for good quality RANSAC
 static const uint32_t MIN_MATCH_FEATURE_COUNT = 30;
@@ -50,6 +55,10 @@ static const double TRIANGULATE_DISTANCE_OUTLIER = 20.0;
 // the minimum angle (in degrees) between frames for triangulation
 static const double MIN_TRIANGULATION_ANGLE = 0.4;
 
+// the minimum angle (in degrees) between frames for triangulation,
+// used when projecting more points
+static const double MIN_TRIANGULATION_ANGLE_LIBERAL = 0.1;
+
 // threshold, after which homography filtering is considered invalid
 static const double HOMOGRAPHY_FILTER_MAX_DIST = 3.0;
 
@@ -64,6 +73,9 @@ static const uint32_t MESH_POISSON_DEPTH = 7;
 // Laplacian values used to smooth the generated mesh
 static const uint32_t LAPLACIAN_ITERATIONS = 3;
 static const float LAPLACIAN_LAMBDA = 0.75f;
+
+// how often should new dense points be projected
+static const uint32_t DENSE_POINTS_EVERY_NTH_FRAME = 30;
 
 
 }

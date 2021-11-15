@@ -80,4 +80,19 @@ inline std::shared_ptr<Frame> frame_from_rgb(const std::shared_ptr<cv::Mat> rgb,
 		});
 }
 
+inline double frame_get_focal(const std::shared_ptr<Frame> frame)
+{
+	return frame->params.intr.at<double>(0, 0);
+}
+
+inline double frame_get_cx(const std::shared_ptr<Frame> frame)
+{
+	return frame->params.intr.at<double>(0, 2);
+}
+
+inline double frame_get_cy(const std::shared_ptr<Frame> frame)
+{
+	return frame->params.intr.at<double>(1, 2);
+}
+
 };

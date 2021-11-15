@@ -1,6 +1,7 @@
 #include "localization_graph.h"
 #include "debug_functions.h"
 #include "features.h"
+#include <Eigen/src/Core/Matrix.h>
 #include <Open3D/Geometry/Geometry.h>
 #include <Open3D/Geometry/PointCloud.h>
 #include <Open3D/Geometry/TriangleMesh.h>
@@ -12,9 +13,13 @@
 #include <memory>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core.hpp>
+#include <opencv2/core/base.hpp>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/core/matx.hpp>
 #include <opencv2/core/types.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
 #include <stdexcept>
 #include <utility>
 
@@ -115,8 +120,11 @@ void LGraph::create_landmarks_from_matches(const std::shared_ptr<Frame> ref_fram
         lm.descriptors.push_back(features::get_individual_descriptor(ref_frame->descriptors, m.first));
         lm.descriptors.push_back(features::get_individual_descriptor(frame->descriptors, m.second));
 
-        const std::vector<cv::Point2f> x1 = { ref_frame->keypoints[m.first].pt };
-        const std::vector<cv::Point2f> x2 = { frame->keypoints[m.second].pt };
+        std::vector<cv::Point2f> x1 = { ref_frame->keypoints[m.first].pt };
+        std::vector<cv::Point2f> x2 = { frame->keypoints[m.second].pt };
+
+        cv::undistortPoints(x1, x1, frame->params.intr, ref_frame->params.distortion, cv::noArray(), ref_frame->params.intr);
+        cv::undistortPoints(x2, x2, frame->params.intr, frame->params.distortion, cv::noArray(), frame->params.intr);
 
         lm.feature_2d_points.push_back(x1[0]);
         lm.feature_2d_points.push_back(x2[0]);
@@ -322,9 +330,75 @@ bool LGraph::localize_frame_pnp(const std::shared_ptr<Frame> prev_frame, std::sh
     if (feature_points.size() < MIN_MATCH_TRIANGULATE_NEW_COUNT)
     {
         // std::cout << "low number of active landmarks reached, creating new ones\n";
-        new_landmarks_standalone(frame, lm_points);    }
+        new_landmarks_standalone(frame, lm_points);
+    }
+
+    if (frames.size() % DENSE_POINTS_EVERY_NTH_FRAME == 0)
+    {
+        std::cout << "project more points\n";
+        project_more_points(find_triangulatable_point_frame(frame, lm_points, MIN_TRIANGULATION_ANGLE_LIBERAL), frame);
+    }
 
     return true;
+}
+
+void LGraph::project_more_points(const std::shared_ptr<Frame> ref_frame, const std::shared_ptr<Frame> frame)
+{
+    std::vector<std::pair<uint32_t, uint32_t>> matches = 
+        features::match_features_flann(ref_frame->descriptors, frame->descriptors, KNN_DISTANCE_RATIO_LIBERAL);
+
+    matches = features::radius_distance_filter_matches(matches, ref_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
+    // matches = homography_filter_matches(ref_frame, frame, matches);
+
+    // DEBUG_visualize_matches(*ref_frame->rgb, *frame->rgb, matches, ref_frame->keypoints, frame->keypoints);
+
+    std::vector<cv::Point2f> x1, x2;
+
+    for (const auto& m : matches)
+    {
+        x1.push_back(ref_frame->keypoints[m.first].pt);
+        x2.push_back(frame->keypoints[m.second].pt);
+    }
+
+    cv::undistortPoints(x1, x1, frame->params.intr, frame->params.distortion, cv::noArray(), frame->params.intr);
+    cv::undistortPoints(x2, x2, frame->params.intr, frame->params.distortion, cv::noArray(), frame->params.intr);
+
+    cv::Mat p4ds;
+    cv::triangulatePoints(ref_frame->projection_cv, frame->projection_cv, x1, x2, p4ds);
+
+    // std::vector<Eigen::Vector3d> debug_points, debug_colors;
+
+    // loop over all triangulated points and convert from homography to cartecian
+    for (int ii = 0; ii < p4ds.cols; ii++)
+    {
+        const Eigen::Vector3d new_p3d (
+                    p4ds.at<float>(0, ii) / p4ds.at<float>(3, ii),
+                    p4ds.at<float>(1, ii) / p4ds.at<float>(3, ii),
+                    p4ds.at<float>(2, ii) / p4ds.at<float>(3, ii));
+
+        // if the triangulated point is behind the camera or too far away -> ignore 
+        if (!utilities::point_in_front(frame->projection, new_p3d) || new_p3d.norm() > TRIANGULATE_DISTANCE_OUTLIER)
+            continue;
+
+        extra_3d_points.push_back(new_p3d);
+
+        const cv::Vec3b col = frame->rgb->at<cv::Vec3b>(x2[ii].y, x2[ii].x);
+        extra_3d_points_colors.push_back(Eigen::Vector3d((float)(col.val[2]) / 255.0, (float)(col.val[1]) / 255.0, (float)(col.val[0]) / 255.0));
+
+        extra_3d_points_normals.push_back(frame->position - new_p3d);
+
+        // debug_points.push_back(new_p3d);
+        // debug_colors.push_back(Eigen::Vector3d((float)(col.val[2]) / 255.0, (float)(col.val[1]) / 255.0, (float)(col.val[0]) / 255.0));
+    }
+
+    // auto extra_cloud = std::make_shared<open3d::geometry::PointCloud>(open3d::geometry::PointCloud(debug_points));
+    // extra_cloud->colors_ = debug_colors;
+
+    // std::shared_ptr<open3d::geometry::TriangleMesh> camera_mesh = std::make_shared<open3d::geometry::TriangleMesh>(open3d::geometry::TriangleMesh());
+    // open3d::io::ReadTriangleMeshFromOBJ("../assets/debug_camera_mesh.obj", *camera_mesh, false);
+    // camera_mesh->Transform(frame->transformation);
+
+    // open3d::visualization::DrawGeometries({ extra_cloud, camera_mesh });
 }
 
 std::vector<std::pair<uint32_t, uint32_t>> LGraph::find_landmark_feature_matches(const std::shared_ptr<Frame> ref_frame,
@@ -653,21 +727,51 @@ void LGraph::backpropagate_new_landmarks(const std::shared_ptr<Frame> frame,
 }
 
 
-std::shared_ptr<Frame> LGraph::find_triangulatable_movement_frame(const std::shared_ptr<Frame> frame)
+std::shared_ptr<Frame> LGraph::find_triangulatable_movement_frame(const std::shared_ptr<Frame> frame, const double angle_threshold)
 {
     // use angle to find good frame
 
-    const Eigen::Vector3d ref_pos = frame->position;
+    const Eigen::Vector3d current_pos = frame->position;
 
-    for (int ii = frames.size() - 1; ii >= 0; ii--)
+    for (int ii = frames.size() - 2; ii >= 0; ii--)
     {
         const std::shared_ptr<Frame> ref_frame = frames[ii];
 
-        if ((ref_frame->position - ref_pos).norm() > TRIANGULATE_DIST_DIFF_MAGNITUDE)
+        if ((ref_frame->position - current_pos).norm() > angle_threshold)
             return ref_frame;
     }
 
     return nullptr;
+}
+
+std::shared_ptr<Frame> LGraph::find_triangulatable_point_frame(const std::shared_ptr<Frame> frame,
+        const std::vector<cv::Point3f>& tr_angle_points, const double angle_threshold)
+{
+    const Eigen::Vector3d current_pos = frame->position;
+
+    const Eigen::Vector3d tr_point_eigen = [&tr_angle_points] {
+        cv::Point3f trp (0.0, 0.0, 0.0);
+        for (const auto& p : tr_angle_points)
+            trp += p;
+        return Eigen::Vector3d(trp.x, trp.y, trp.z);
+
+    }();
+
+    for (int ii = frames.size() - 2; ii >= 0; ii--)
+    {
+        const std::shared_ptr<Frame> ref_frame = frames[ii];
+
+        const double frame_angle = utilities::calculate_triangulation_angle(frames[ii]->position, frame->position, tr_point_eigen);
+
+        if (RAD2DEG(frame_angle) < angle_threshold)
+            continue;
+
+        std::cout << "use frame id " << ii << " for triangulation\n";
+        return ref_frame;
+    }
+
+    std::cout << "use frame id 0 for triangulation\n";
+    return frames[0];
 }
 
 void LGraph::new_landmarks_from_matched(const std::shared_ptr<Frame> ref_frame,
@@ -699,6 +803,95 @@ void LGraph::new_landmarks_from_matched(const std::shared_ptr<Frame> ref_frame,
     // std::cout << ref_frame->position.transpose() << ", " << frame->position.transpose() << "\n";
 
     create_landmarks_from_matches(ref_frame, frame, new_matches);
+}
+
+void LGraph::project_dense_depth_points(const std::shared_ptr<Frame> ref_frame, const std::shared_ptr<Frame> frame)
+{
+    /**
+     *  - The frames are not parallel -> cannot use traditional stereo 
+     *      matching for disparity map generation
+     */
+
+    std::vector<std::pair<uint32_t, uint32_t>> matches = 
+#if defined USE_FLANN
+        features::match_features_flann(ref_frame->descriptors, frame->descriptors);
+#else
+        features::match_features_bf_crosscheck(ref_frame->descriptors, frame->descriptors);
+#endif
+
+    matches = features::radius_distance_filter_matches(matches, ref_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
+    // matches = homography_filter_matches(ref_frame, frame, matches);
+
+    if (matches.size() < 10)
+        return;
+
+    // DEBUG_visualize_matches(*ref_frame->rgb, *frame->rgb, matches, ref_frame->keypoints, frame->keypoints);
+
+    std::vector<cv::Point2f> points_1, points_2;
+    for (const auto& m : matches)
+    {
+        points_1.push_back(ref_frame->keypoints[m.first].pt);
+        points_2.push_back(frame->keypoints[m.second].pt);
+    }
+
+    cv::undistortPoints(points_1, points_1, frame->params.intr, frame->params.distortion, cv::noArray(), frame->params.intr);
+    cv::undistortPoints(points_2, points_2, frame->params.intr, frame->params.distortion, cv::noArray(), frame->params.intr);
+
+    // compute the fundamental matrix
+    const cv::Mat Fmat = cv::findFundamentalMat(points_1, points_2);
+    // const cv::Mat Frefmat = utilities::fundamental_matrix_from_P(frame->params.intr, ref_frame->rotation, frame->rotation, ref_frame->position, frame->position);
+
+    const cv::Size frame_size (frame->rgb->cols, frame->rgb->rows);
+
+    // acquire homography warping matrices for the frames
+    cv::Mat H1, H2;
+    cv::stereoRectifyUncalibrated(points_1, points_2, Fmat, frame_size, H1, H2, 0);
+
+    // undistort the frames
+    cv::Mat H1_warped;
+    cv::Mat H2_warped;
+
+    cv::undistort(*ref_frame->rgb, H1_warped, ref_frame->params.intr, ref_frame->params.distortion);
+    cv::undistort(*frame->rgb, H2_warped, frame->params.intr, frame->params.distortion);
+
+    cv::warpPerspective(H1_warped, H1_warped, H1, frame_size);
+    cv::warpPerspective(H2_warped, H2_warped, H2, frame_size);
+
+    // convert to grayscale
+    cv::cvtColor(H1_warped, H1_warped, cv::COLOR_RGB2GRAY);
+    cv::cvtColor(H2_warped, H2_warped, cv::COLOR_RGB2GRAY);
+
+    // compute depth from disparity using the StereoSGBM algorithm
+    auto stereo_depth = cv::StereoSGBM::create();
+    stereo_depth->setNumDisparities(16);
+    stereo_depth->setBlockSize(25);
+
+    cv::Mat disparity_sgbm;
+    stereo_depth->compute(H1_warped, H2_warped, disparity_sgbm);
+
+    // cv::Mat disp_u8;
+    // cv::normalize(disparity_sgbm, disp_u8, 0, 255, cv::NORM_MINMAX, CV_8U);
+
+    // cv::bitwise_not(disp_u8, disp_u8);
+
+    const std::vector<Eigen::Vector3d> new_3d_points = utilities::world_points_from_disparity(
+        disparity_sgbm, frame->transformation, (frame->position - ref_frame->position).norm(), frame_get_focal(frame),
+        frame_get_cx(frame), frame_get_cy(frame));
+
+
+    auto pcloud = std::make_shared<open3d::geometry::PointCloud>(open3d::geometry::PointCloud(new_3d_points));
+    open3d::visualization::DrawGeometries({ pcloud });
+
+    // cv::convertScaleAbs(disparity_sgbm, disparity_sgbm);
+
+    cv::Mat stacked_images;
+    cv::hconcat(H1_warped, H2_warped, stacked_images);
+
+    cv::imshow("stereo", stacked_images);
+    cv::waitKey(0);
+
+    cv::imshow("stereo", disparity_sgbm);
+    cv::waitKey(0);
 }
 
 void LGraph::visualize_camera_tracks(const bool visualize_landmarks, bool generate_mesh) const
@@ -737,15 +930,27 @@ void LGraph::visualize_camera_tracks(const bool visualize_landmarks, bool genera
         {
             // lms_cloud->EstimateNormals(open3d::geometry::KDTreeSearchParamHybrid(1.0, 16));
 
-            auto [new_mesh, trash] = open3d::geometry::TriangleMesh::CreateFromPointCloudPoisson(*lms_cloud, MESH_POISSON_DEPTH);
+            auto mesh_cloud = std::make_shared<open3d::geometry::PointCloud>(open3d::geometry::PointCloud(extra_3d_points));
+            mesh_cloud->colors_ = extra_3d_points_colors;
+            mesh_cloud->normals_ = extra_3d_points_normals;
+
+            *mesh_cloud += *lms_cloud;
+
+            auto [new_mesh, trash] = open3d::geometry::TriangleMesh::CreateFromPointCloudPoisson(*mesh_cloud, MESH_POISSON_DEPTH);
             new_mesh = new_mesh->FilterSmoothLaplacian(LAPLACIAN_ITERATIONS, LAPLACIAN_LAMBDA);
 
             debug_cameras.push_back(new_mesh);
-            // debug_cameras.push_back(lms_cloud);
+            // debug_cameras.push_back(mesh_cloud);
         }
         else
         {
             debug_cameras.push_back(lms_cloud);
+
+            auto extra_cloud = std::make_shared<open3d::geometry::PointCloud>(open3d::geometry::PointCloud(extra_3d_points));
+            extra_cloud->colors_ = extra_3d_points_colors;
+            extra_cloud->normals_ = extra_3d_points_normals;
+
+            debug_cameras.push_back(extra_cloud);
         }
     }
 
