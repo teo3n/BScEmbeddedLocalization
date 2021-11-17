@@ -34,7 +34,7 @@ class Camera
 
 public:
 
-	Camera(const cv::uint32_t stream_id);
+	Camera(const uint32_t stream_id);
 	~Camera();
 
 	/**
