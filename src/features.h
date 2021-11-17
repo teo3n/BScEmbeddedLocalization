@@ -67,7 +67,7 @@ inline std::tuple<std::vector<cv::KeyPoint>, cv::Mat> detect_features_orb(const 
 	if (!dense)
 		orb_detector->detectAndCompute(*frame, cv::noArray(), kp_features, descriptors);
 	else	
-		orb_detector_dense->detectAndCompute(*frame, cv::noArray(), kp_features, descriptors);	
+		orb_detector_dense->detectAndCompute(*frame, cv::noArray(), kp_features, descriptors);
 
 	return std::make_tuple(kp_features, descriptors);
 }

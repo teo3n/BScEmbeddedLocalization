@@ -76,6 +76,11 @@ int main()
    LGraph lgraph;
    lgraph.localize_frame(f1);
 
+   // for (int ii = 0; ii < f1->keypoints.size(); ii++)
+   // {
+   //    std::cout << f1->keypoints[ii].pt << "\n";
+   // }
+
    int fail_count = 0;
 
    for (int ii = 35; ii < 89; ii++)

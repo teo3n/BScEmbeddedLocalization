@@ -8,8 +8,8 @@ namespace k3d
 
 #define LOG
 
-#define USE_FLANN
-#define USE_FLANN_ESSENTIAL
+// #define USE_FLANN
+// #define USE_FLANN_ESSENTIAL
 // #define USE_OPEN3D
 
 
