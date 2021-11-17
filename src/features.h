@@ -127,6 +127,9 @@ inline std::vector<std::pair<uint32_t, uint32_t>>
 	}
 
 	feature_matches.shrink_to_fit();
+
+	std::cout << "feature matches found: " << feature_matches.size() << "\n";
+
 	return feature_matches;
 }
 
