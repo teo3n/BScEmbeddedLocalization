@@ -4,7 +4,7 @@
 using namespace k3d;
 
 
-Camera::Camera(const cv::uint32_t stream_id) :
+Camera::Camera(const uint32_t stream_id) :
 	video_stream(std::make_unique<cv::VideoCapture>(cv::VideoCapture(stream_id)))
 {
 
