@@ -85,8 +85,8 @@ int main()
       const std::shared_ptr<cv::Mat> frame = std::make_shared<cv::Mat>(cv::imread("../assets/rock/rgb_" + std::to_string(ii) + ".png"));
       t.stop("read image");
       std::shared_ptr<Frame> ff = frame_from_rgb(frame, intr, dist);
-      t.stop("detect orb");
-      
+      t.stop("detect orb features: " + std::to_string(ff->keypoints.size()));
+
       if (!lgraph.localize_frame(ff))
          fail_count++;
 
