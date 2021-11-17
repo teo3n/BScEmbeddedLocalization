@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.10.2)
 set (CMAKE_CXX_STANDARD 17)
 
-# set(CMAKE_THREAD_LIBS_INIT "-lpthread")
-# set(CMAKE_HAVE_THREADS_LIBRARY 1)
-# set(CMAKE_USE_WIN32_THREADS_INIT 0)
-# set(CMAKE_USE_PTHREADS_INIT 1)
-# set(THREADS_PREFER_PTHREAD_FLAG ON)
+set(CMAKE_THREAD_LIBS_INIT "-lpthread")
+set(CMAKE_HAVE_THREADS_LIBRARY 1)
+set(CMAKE_USE_WIN32_THREADS_INIT 0)
+set(CMAKE_USE_PTHREADS_INIT 1)
+set(THREADS_PREFER_PTHREAD_FLAG ON)
 
 project(kandi3dloc)
 
@@ -18,14 +18,17 @@ set(SOURCES main.cpp
     src/debug_functions.h
     src/utilities.h
     src/timer.h
+    src/point_streamer.h
 )
 
 
 find_package(Open3D HINTS ${CMAKE_INSTALL_PREFIX}/lib/CMake)
-# list(APPEND Open3D_LIBRARIES dl)
-# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${Open3D_C_FLAGS}")
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Open3D_CXX_FLAGS} -fopenmp") 
-# set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${Open3D_EXE_LINKER_FLAGS}")
+list(APPEND Open3D_LIBRARIES dl)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${Open3D_C_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Open3D_CXX_FLAGS} -fopenmp") 
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${Open3D_EXE_LINKER_FLAGS}")
+
+find_package(Boost 1.71.0 REQUIRED system)
 
 
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)

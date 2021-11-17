@@ -1,4 +1,12 @@
-#pragma once
+/**
+ *  Teo Niemirepo
+ * 	teo.niemirepo@tuni.fi
+ * 	7.9.2021
+ * 
+ * 	A collection of constants used program-wide
+ */
+
+ #pragma once
 
 #include <cstdint>
 #include <Eigen/Eigen>
@@ -12,6 +20,8 @@ namespace k3d
 #define USE_FLANN_ESSENTIAL
 // #define USE_OPEN3D
 
+static const std::string STREAM_IP = "127.0.0.1";
+static const uint32_t STREAM_PORT = 1234;
 
 typedef Eigen::Matrix<double, 3, 4> Mat34;
 

@@ -32,6 +32,7 @@
 #include "utilities.h"
 #include "debug_functions.h"
 #include "timer.h"
+#include "point_streamer.h"
 
 
 namespace k3d
@@ -197,6 +198,8 @@ private:
     std::vector<Eigen::Vector3d> extra_3d_points;
     std::vector<Eigen::Vector3d> extra_3d_points_colors;
     std::vector<Eigen::Vector3d> extra_3d_points_normals;
+
+    networking::StreamHandle stream_handle;
     
 };
 

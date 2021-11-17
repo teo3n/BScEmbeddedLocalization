@@ -30,7 +30,8 @@
 
 using namespace k3d;
 
-LGraph::LGraph()
+LGraph::LGraph() :
+    stream_handle(networking::acquire_stream_handle(STREAM_IP, STREAM_PORT))
 {
     // double identity_vec[3*3] = { 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 };
     // identity_mat = utilities::restrucure_mat<double>(identity_vec, 3, 3);
@@ -40,17 +41,29 @@ bool LGraph::localize_frame(std::shared_ptr<Frame> frame)
 {
 	frames.push_back(frame);
 
+    bool status = false;
+
     // cannot localize if only 1 frame
     if (frames.size() == 1)
-        return true;
+        status = true;
 
     // localize using essential matrix decomposition
     else if (frames.size() == 2)
-        return localize_frame_essential(frames[0], frame);
+        status = localize_frame_essential(frames[0], frame);
 
     // localize using PnP
     else
-        return localize_frame_pnp(frames[frames.size() - 2], frame);
+        status = localize_frame_pnp(frames[frames.size() - 2], frame);
+
+    // stream points to remote
+    if (status)
+    {
+        std::vector<Eigen::Vector3d> points, colors;
+
+        networking::stream_points_camera(points, colors, frames.back(), stream_handle);
+    }
+
+    return status;
 }
 
 
