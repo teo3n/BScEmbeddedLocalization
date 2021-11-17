@@ -76,10 +76,7 @@ int main()
    LGraph lgraph;
    lgraph.localize_frame(f1);
 
-   // for (int ii = 0; ii < f1->keypoints.size(); ii++)
-   // {
-   //    std::cout << f1->keypoints[ii].pt << "\n";
-   // }
+   std::vector<uint32_t> times;
 
    int fail_count = 0;
 
@@ -98,8 +95,14 @@ int main()
       if (fail_count > 5)
          break;
 
+      times.push_back(t.lap_ms());
+
       t.stop("localize frame " + std::to_string(ii));
    }
+
+   for (auto t : times)
+      std::cout << t << ", ";
+   std::cout << "\n";
 
 #ifdef USE_OPEN3D
    lgraph.visualize_camera_tracks(true, false);
