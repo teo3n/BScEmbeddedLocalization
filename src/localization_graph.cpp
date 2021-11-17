@@ -858,6 +858,7 @@ void LGraph::visualize_camera_tracks(const bool visualize_landmarks, bool genera
 }
 #endif
 
+
 void LGraph::print_camera_tracks() const
 {
     for (int ii = 0; ii < frames.size(); ii++)

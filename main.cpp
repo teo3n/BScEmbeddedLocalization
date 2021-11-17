@@ -15,6 +15,7 @@
 #include <opencv2/features2d.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <string>
 #include <vector>
 
 #include "src/constants.h"
@@ -77,20 +78,20 @@ int main()
 
    int fail_count = 0;
 
-   for (int ii = 35; ii < 200; ii++)
+   for (int ii = 35; ii < 89; ii++)
    {
       Timer t;
 
       const std::shared_ptr<cv::Mat> frame = std::make_shared<cv::Mat>(cv::imread("../assets/rock/rgb_" + std::to_string(ii) + ".png"));
       std::shared_ptr<Frame> ff = frame_from_rgb(frame, intr, dist);
-      t.stop("acquire frame");
+      // t.stop("acquire frame");
       if (!lgraph.localize_frame(ff))
          fail_count++;
 
       if (fail_count > 5)
          break;
 
-      t.stop("localize frame");
+      t.stop("localize frame " + std::to_string(ii));
    }
 
 #ifdef USE_OPEN3D
