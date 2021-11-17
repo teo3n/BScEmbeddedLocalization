@@ -177,13 +177,6 @@ private:
         const std::vector<cv::Point3f>& tr_angle_points, const double angle_threshold = MIN_TRIANGULATION_ANGLE);
 
     /**
-     *  @brief Generates disparity maps from stereo correspondences and projects
-     *      them into 3D points. Not really usable without extreme filtering due to
-     *      highly noisy disparity maps in this case.
-     */
-    void project_dense_depth_points(const std::shared_ptr<Frame> ref_frame, const std::shared_ptr<Frame> frame);
-
-    /**
      *  @brief Projects more 3D points more liberally and with minimal filtering.
      *      Quality not guaranteed.
      */
