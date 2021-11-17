@@ -87,8 +87,12 @@ bool LGraph::localize_frame_essential(const std::shared_ptr<Frame> ref_frame, st
     cv::Mat mask;
     const cv::Mat essential = cv::findEssentialMat(x1, x2, frame->params.intr, cv::RANSAC, 0.999, 0.11, mask);
 
+    std::cout << essential << "\n";
+
     cv::Mat local_R, local_t;
     cv::recoverPose(essential, x1, x2, frame->params.intr, local_R, local_t, mask);
+
+    std::cout << local_R << "\n\n" << local_t << "\n";
 
     Eigen::Matrix3d dR;
     Eigen::Vector3d dt;
