@@ -23,7 +23,9 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/core/eigen.hpp>
 
-#include <Open3D/Open3D.h>
+#ifdef BEAGLEBONE
+    #include <Open3D/Open3D.h>
+#endif
 
 #include "frame.h"
 #include "constants.h"
@@ -64,10 +66,12 @@ public:
      */
     bool localize_frame(std::shared_ptr<Frame> frame);
 
+#ifdef BEAGLEBONE
     /**
      *  @brief Visualizes the camera tracks
      */
     void visualize_camera_tracks(const bool visualize_landmarks = false, bool generate_mesh = false) const;
+#endif
 
 private:
 

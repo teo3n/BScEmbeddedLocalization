@@ -2,10 +2,14 @@
 #include "debug_functions.h"
 #include "features.h"
 #include <Eigen/src/Core/Matrix.h>
-#include <Open3D/Geometry/Geometry.h>
-#include <Open3D/Geometry/PointCloud.h>
-#include <Open3D/Geometry/TriangleMesh.h>
-#include <Open3D/Visualization/Utility/DrawGeometry.h>
+
+#ifdef BEAGLEBONE
+    #include <Open3D/Geometry/Geometry.h>
+    #include <Open3D/Geometry/PointCloud.h>
+    #include <Open3D/Geometry/TriangleMesh.h>
+    #include <Open3D/Visualization/Utility/DrawGeometry.h>
+#endif
+
 #include <algorithm>
 #include <cstdint>
 #include <fmt/format.h>
@@ -859,9 +863,10 @@ void LGraph::project_dense_depth_points(const std::shared_ptr<Frame> ref_frame, 
         disparity_sgbm, frame->transformation, (frame->position - ref_frame->position).norm(), frame_get_focal(frame),
         frame_get_cx(frame), frame_get_cy(frame));
 
-
+#ifdef BEAGLEBONE
     auto pcloud = std::make_shared<open3d::geometry::PointCloud>(open3d::geometry::PointCloud(new_3d_points));
     open3d::visualization::DrawGeometries({ pcloud });
+#endif
 
     // cv::convertScaleAbs(disparity_sgbm, disparity_sgbm);
 
@@ -875,6 +880,7 @@ void LGraph::project_dense_depth_points(const std::shared_ptr<Frame> ref_frame, 
     cv::waitKey(0);
 }
 
+#ifdef BEAGLEBONE
 void LGraph::visualize_camera_tracks(const bool visualize_landmarks, bool generate_mesh) const
 {
     std::vector<std::shared_ptr<const open3d::geometry::Geometry>> debug_cameras;
@@ -933,9 +939,10 @@ void LGraph::visualize_camera_tracks(const bool visualize_landmarks, bool genera
             extra_cloud->colors_ = extra_3d_points_colors;
             extra_cloud->normals_ = extra_3d_points_normals;
 
-            debug_cameras.push_back(extra_cloud);
+            // debug_cameras.push_back(extra_cloud);
         }
     }
 
     open3d::visualization::DrawGeometries(debug_cameras, "track visualization", 1920, 1080);
 }
+#endif

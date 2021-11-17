@@ -10,12 +10,13 @@ namespace k3d
 
 #define USE_FLANN
 #define USE_FLANN_ESSENTIAL
+// #define BEAGLEBONE
 
 
 typedef Eigen::Matrix<double, 3, 4> Mat34;
 
 // specify the maximum number of features to be detected
-static const uint32_t ORB_FEATURE_COUNT = 2000;
+static const uint32_t ORB_FEATURE_COUNT = 5000;
 
 static const uint32_t ORB_FEATURE_COUNT_DENSE = 10000;
 
@@ -27,7 +28,7 @@ static const float MATCH_MAX_DISTANCE = 120.f;
 static const float FEATURE_DIST_MAX_RADIUS = 80.f;
 
 // the nearest-neighbour distance ratio, used in feature match distance check
-static const float KNN_DISTANCE_RATIO = 0.7f;
+static const float KNN_DISTANCE_RATIO = 0.75f;
 
 // used when only a large quantity of matches is required,
 // quality may be dubious
@@ -42,7 +43,7 @@ static const uint32_t FLANN_MULTI_PROBE_LEVEL = 1;	// 2
 static const uint32_t MIN_MATCH_FEATURE_COUNT = 30;
 
 // the number of feature matches, below which new landmarks are triangulated
-static const uint32_t MIN_MATCH_TRIANGULATE_NEW_COUNT = 125;
+static const uint32_t MIN_MATCH_TRIANGULATE_NEW_COUNT = 150;
 
 // the minimum amount of movement, which will be considered
 // good enough to be triangulated

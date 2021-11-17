@@ -93,7 +93,9 @@ int main()
       t.stop("localize frame");
    }
 
-   lgraph.visualize_camera_tracks(true, true);
+#ifdef BEAGLEBONE
+   lgraph.visualize_camera_tracks(true, false);
+#endif
 
    return 0;
 }
