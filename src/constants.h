@@ -8,15 +8,15 @@ namespace k3d
 
 #define LOG
 
-// #define USE_FLANN
-// #define USE_FLANN_ESSENTIAL
+#define USE_FLANN
+#define USE_FLANN_ESSENTIAL
 // #define USE_OPEN3D
 
 
 typedef Eigen::Matrix<double, 3, 4> Mat34;
 
 // specify the maximum number of features to be detected
-static const uint32_t ORB_FEATURE_COUNT = 3500;
+static const uint32_t ORB_FEATURE_COUNT = 5000;
 
 static const uint32_t ORB_FEATURE_COUNT_DENSE = 7000;
 
