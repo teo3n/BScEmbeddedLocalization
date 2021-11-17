@@ -458,83 +458,6 @@ std::vector<std::pair<uint32_t, uint32_t>> LGraph::find_landmark_feature_matches
     return feature_lm_correspondences;
 }
 
-std::vector<std::pair<uint32_t, uint32_t>> LGraph::backpropagate_future_matches(const std::shared_ptr<Frame> ref_frame,
-        const std::shared_ptr<Frame> frame,
-        const std::vector<std::pair<uint32_t, uint32_t>>& matches)
-{
-    throw std::runtime_error("this does not work, to the surprise of absolutely no one ");
-
-    // <2d feature, 3d landmark>
-    std::vector<std::pair<uint32_t, uint32_t>> feature_lm_correspondences;
-    std::vector<uint32_t> ref_feature_ids;
-    feature_lm_correspondences.reserve(std::min(matches.size(), ref_frame->feature_landmark_lookup.size()));
-
-    // collect landmark point ids and current frame feature point ids
-    // find prev-current matched form prev-landmarks
-    for (const auto& flm : ref_frame->feature_landmark_lookup)
-    {
-        for (const auto& match : matches)
-        {
-            // feature match was found in landmark lookup
-            if (match.first == flm.first)
-            {
-                feature_lm_correspondences.push_back(std::make_pair(match.second, flm.second));
-                ref_feature_ids.push_back(match.first);
-            }
-        }
-    }
-
-    // not enough matches, backpropagate new ones
-    // if (feature_lm_correspondences.size() < MIN_MATCH_FEATURE_COUNT)
-    if (frames.size() > 5)
-    {
-        std::vector<std::pair<uint32_t, uint32_t>> new_matches;
-        std::shared_ptr<Frame> latest_frame;
-
-        // find a frame until STATISTICAL_FEATURE_COUNT condition not met
-        for (int ii = frames.size() - 4; ii >= 0; ii--)
-        {
-            latest_frame = frames[ii];
-
-            new_matches = features::match_features_flann(latest_frame->descriptors, ref_frame->descriptors);
-            new_matches = features::take_only_indexed_matches(new_matches, ref_feature_ids);
-
-            // new_matches = features::match_features_bf_crosscheck(latest_frame->descriptors, ref_desc);
-
-            // new_matches = homography_filter_matches(latest_frame, ref_frame, new_matches);
-            // new_matches = features::radius_distance_filter_matches(new_matches, ref_kps, latest_frame->keypoints, frame_kps;
-
-            // DEBUG_visualize_matches(*latest_frame->rgb, *ref_frame->rgb, new_matches, latest_frame->keypoints, ref_frame->keypoints);
-
-            // std::cout << ref_feature_ids.size() << ", " << new_matches.size() << ", " << matches.size() << "\n";
-
-            // frame found, stop searching
-            if (new_matches.size() < 250)
-                break;
-        }
-
-        feature_lm_correspondences.shrink_to_fit();
-        create_landmarks_from_matches(latest_frame, frame, new_matches);
-
-        feature_lm_correspondences.clear();
-
-        for (const auto& flm : ref_frame->feature_landmark_lookup)
-        {
-            for (const auto& match : matches)
-            {
-                // feature match was found in landmark lookup
-                if (match.first == flm.first)
-                {
-                    feature_lm_correspondences.push_back(std::make_pair(match.second, flm.second));
-                    ref_feature_ids.push_back(match.first);
-                }
-            }
-        }
-    }
-
-    return feature_lm_correspondences;
-}
-
 void LGraph::new_landmarks_standalone(const std::shared_ptr<Frame> frame, const std::vector<cv::Point3f>& tr_angle_points)
 {
     /**
@@ -565,61 +488,6 @@ void LGraph::new_landmarks_standalone(const std::shared_ptr<Frame> frame, const 
 
     // create landmarks and add to feature_landmark_lookup
     create_landmarks_from_matches(ref_frame, frame, matches);
-}
-
-void LGraph::backpropagate_new_landmarks_homography(const std::shared_ptr<Frame> frame,
-        const cv::Point3f tr_angle_point)
-{
-    // TODO: find the largest difference frame to match against
-
-    std::shared_ptr<Frame> ref_frame = nullptr;
-    const Eigen::Vector3d tr_point (tr_angle_point.x, tr_angle_point.y, tr_angle_point.z);
-
-    if (frames.size() < 4)
-        return;
-
-    for (int ii = frames.size() - 3; ii >= 0; ii--)
-    {
-        const double frame_angle = utilities::calculate_triangulation_angle(frames[ii]->position, frame->position, tr_point);
-
-        if (RAD2DEG(frame_angle) < MIN_TRIANGULATION_ANGLE)
-            continue;
-
-        ref_frame = frames[ii];
-        break;
-    }
-
-    if (!ref_frame)
-        return;
-
-    std::vector<std::pair<uint32_t, uint32_t>> matches = 
-        features::match_features_bf_crosscheck(ref_frame->descriptors, frame->descriptors);
-    matches = homography_filter_matches(ref_frame, frame, matches);
-
-
-    // filter matches for already existing landmarks
-
-    std::vector<std::pair<uint32_t, uint32_t>> new_matches;
-    for (const auto& m : matches)
-    {
-        // find if the feature id already exists in teh landmark lookup
-        const auto it = std::find_if(ref_frame->feature_landmark_lookup.begin(), ref_frame->feature_landmark_lookup.end(),
-            [&m](const std::pair<uint32_t, uint32_t>& feature_landmark) {
-                return feature_landmark.first == m.first;
-            });
-
-        // the feature was not found --> create new landmarks
-        if (it == ref_frame->feature_landmark_lookup.end())
-            new_matches.push_back(m);
-    }
-
-    create_landmarks_from_matches(ref_frame, frame, new_matches);
-
-    std::cout << "matches " << matches.size() << " out of " << new_matches.size() << "\n";
-
-    // DEBUG_visualize_matches(*ref_frame->rgb, *frame->rgb, matches, ref_frame->keypoints, frame->keypoints);
-    // visualize_camera_tracks(true);
-
 }
 
 std::vector<std::pair<uint32_t, uint32_t>> LGraph::homography_filter_matches(
@@ -662,81 +530,6 @@ std::vector<std::pair<uint32_t, uint32_t>> LGraph::homography_filter_matches(
     good_matches.shrink_to_fit();
     return good_matches;
 }
-
-
-void LGraph::backpropagate_new_landmarks(const std::shared_ptr<Frame> frame,
-        const std::shared_ptr<Frame> ref_frame,
-        const std::vector<uint32_t>& ref_frame_fids_inv,
-        const std::vector<uint32_t>& current_frame_fids_inv,
-        const std::vector<std::pair<uint32_t, uint32_t>>& matches,
-        const cv::Point3f tr_angle_point)
-{
-    // traverse the frames backwards, matching the features, until
-    // a frame is found which has enough triangulatable movement
-
-    // Create a data structure for holding the to-be-triangulated (tbt) feature chains.
-    // Is also used as a lookup for pruning the triangulation list
-    std::unordered_map<uint32_t, std::vector<uint32_t>> feature_chain;
-    feature_chain.reserve(current_frame_fids_inv.size());
-
-    // used to map feature ids from frame -> last_frame
-    std::map<uint32_t, uint32_t> first_current_feature_lookup;
-
-    for (int ii = 0; ii < current_frame_fids_inv.size(); ii++)
-    {
-        feature_chain.insert(std::make_pair(current_frame_fids_inv[ii], std::vector<uint32_t> { ref_frame_fids_inv[ii] }));
-        first_current_feature_lookup.insert(std::make_pair(current_frame_fids_inv[ii], ref_frame_fids_inv[ii]));
-    }
-
-    std::vector<uint32_t> last_frame_fids = ref_frame_fids_inv;
-    cv::Mat last_frame_descriptor = features::descriptor_from_feature_ids(ref_frame->descriptors, last_frame_fids);
-    std::shared_ptr<Frame> last_frame = ref_frame;
-
-
-    // -3: -1 for size, -2 for frame, -3 for ref_frame
-    for (int ii = frames.size() - 3; ii >= 0; ii--)
-    {
-        const std::shared_ptr<Frame> current_frame = frames[ii];;
-
-        // match the current latest descriptors against a new frame
-        std::vector<std::pair<uint32_t, uint32_t>> matches = 
-            features::match_features_bf_crosscheck(last_frame_descriptor, current_frame->descriptors);
-        matches = features::radius_distance_filter_matches(matches, last_frame->keypoints, current_frame->keypoints, FEATURE_DIST_MAX_RADIUS);
-
-        std::cout << "matches size: " << matches.size() << "\n";
-
-        last_frame_fids.clear();
-
-        // populate tbt feature chain lookup
-        for (const auto& match : matches)
-        {
-            // find match.first in first_current_feature_lookup, acquire the "key", use the key to
-            // index into feature_chain, append match.second
-            const auto key_iter = std::find_if(
-                first_current_feature_lookup.begin(),
-                first_current_feature_lookup.end(),
-                [match](const auto& fcfl) { return fcfl.second == match.first; });
-
-            if (key_iter == first_current_feature_lookup.end())
-                continue;
-
-            const uint32_t key = key_iter->first;
-            feature_chain.at(key).push_back(match.second);
-
-            // append the current frame feature id, next iteration last frame id
-            last_frame_fids.push_back(match.second);
-        }
-
-        // check if enough triangulatable distance
-
-        // if enough movement, stop iterating and triangulate
-        throw std::runtime_error("todo");
-
-        last_frame = current_frame;
-        last_frame_descriptor = features::descriptor_from_feature_ids(current_frame->descriptors, last_frame_fids);
-    }
-}
-
 
 std::shared_ptr<Frame> LGraph::find_triangulatable_movement_frame(const std::shared_ptr<Frame> frame, const double angle_threshold)
 {
@@ -784,37 +577,6 @@ std::shared_ptr<Frame> LGraph::find_triangulatable_point_frame(const std::shared
 
     std::cout << "use frame id 0 for triangulation\n";
     return frames[0];
-}
-
-void LGraph::new_landmarks_from_matched(const std::shared_ptr<Frame> ref_frame,
-        const std::shared_ptr<Frame> frame)
-{
-    std::vector<std::pair<uint32_t, uint32_t>> matches = 
-        features::match_features_bf_crosscheck(ref_frame->descriptors, frame->descriptors);
-
-    matches = features::radius_distance_filter_matches(matches, ref_frame->keypoints, frame->keypoints, FEATURE_DIST_MAX_RADIUS);
-
-    std::vector<std::pair<uint32_t, uint32_t>> new_matches;
-
-    // filter matches for already existing landmarks
-    for (const auto& m : matches)
-    {
-        // find if the feature id already exists in teh landmark lookup
-        const auto it = std::find_if(ref_frame->feature_landmark_lookup.begin(), ref_frame->feature_landmark_lookup.end(),
-            [&m](const std::pair<uint32_t, uint32_t>& feature_landmark) {
-                return feature_landmark.first == m.first;
-            });
-
-        // the feature was not found --> create new landmarks
-        if (it == ref_frame->feature_landmark_lookup.end())
-            new_matches.push_back(m);
-    }
-
-    // std::cout << "new landmarks: " << new_matches.size() << "\n";
-
-    // std::cout << ref_frame->position.transpose() << ", " << frame->position.transpose() << "\n";
-
-    create_landmarks_from_matches(ref_frame, frame, new_matches);
 }
 
 #ifdef USE_OPEN3D
