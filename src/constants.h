@@ -16,7 +16,7 @@ namespace k3d
 typedef Eigen::Matrix<double, 3, 4> Mat34;
 
 // specify the maximum number of features to be detected
-static const uint32_t ORB_FEATURE_COUNT = 5000;
+static const uint32_t ORB_FEATURE_COUNT = 3500;
 
 static const uint32_t ORB_FEATURE_COUNT_DENSE = 7000;
 
