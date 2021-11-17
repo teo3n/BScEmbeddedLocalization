@@ -93,7 +93,7 @@ int main()
       t.stop("localize frame");
    }
 
-#ifdef BEAGLEBONE
+#ifdef USE_OPEN3D
    lgraph.visualize_camera_tracks(true, false);
 #endif
 

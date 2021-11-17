@@ -3,11 +3,12 @@
 #include "features.h"
 #include <Eigen/src/Core/Matrix.h>
 
-#ifdef BEAGLEBONE
+#ifdef USE_OPEN3D
     #include <Open3D/Geometry/Geometry.h>
     #include <Open3D/Geometry/PointCloud.h>
     #include <Open3D/Geometry/TriangleMesh.h>
     #include <Open3D/Visualization/Utility/DrawGeometry.h>
+    #include <Open3D/IO/ClassIO/TriangleMeshIO.h>
 #endif
 
 #include <algorithm>
@@ -790,7 +791,7 @@ void LGraph::new_landmarks_from_matched(const std::shared_ptr<Frame> ref_frame,
     create_landmarks_from_matches(ref_frame, frame, new_matches);
 }
 
-#ifdef BEAGLEBONE
+#ifdef USE_OPEN3D
 void LGraph::visualize_camera_tracks(const bool visualize_landmarks, bool generate_mesh) const
 {
     std::vector<std::shared_ptr<const open3d::geometry::Geometry>> debug_cameras;
