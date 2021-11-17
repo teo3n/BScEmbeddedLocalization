@@ -21,14 +21,14 @@ set(SOURCES main.cpp
 )
 
 
-find_package(Open3D HINTS ${CMAKE_INSTALL_PREFIX}/lib/CMake)
-list(APPEND Open3D_LIBRARIES dl)
+# find_package(Open3D HINTS ${CMAKE_INSTALL_PREFIX}/lib/CMake)
+# list(APPEND Open3D_LIBRARIES dl)
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${Open3D_C_FLAGS}")
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Open3D_CXX_FLAGS} -fopenmp") 
+# set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${Open3D_EXE_LINKER_FLAGS}")
+
 
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
-
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${Open3D_C_FLAGS}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Open3D_CXX_FLAGS} -fopenmp") 
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${Open3D_EXE_LINKER_FLAGS}")
 
 add_definitions(-DUNIX)
 add_compile_options(-Wno-deprecated-declarations)
@@ -47,7 +47,7 @@ message(STATUS "    version: ${OpenCV_VERSION}")
 message(STATUS "    libraries: ${OpenCV_LIBS}")
 message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
 
-link_directories(${Open3D_LIBRARY_DIRS})
+# link_directories(${Open3D_LIBRARY_DIRS})
 
 include_directories( ${EIGEN_INCLUDE_DIR})
 
