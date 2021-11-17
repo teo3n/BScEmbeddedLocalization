@@ -192,6 +192,9 @@ private:
 
     std::vector<Landmark> landmarks;
 
+    std::vector<Eigen::Vector3d> current_frame_points;
+    std::vector<Eigen::Vector3d> current_frame_point_colors;
+
     /**
      *  Extra 3D points, not used in frame localization
      */

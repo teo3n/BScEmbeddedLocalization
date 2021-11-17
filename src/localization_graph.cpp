@@ -39,6 +39,9 @@ LGraph::LGraph() :
 
 bool LGraph::localize_frame(std::shared_ptr<Frame> frame)
 {
+    current_frame_points.clear();
+    current_frame_point_colors.clear();
+
 	frames.push_back(frame);
 
     bool status = false;
@@ -55,12 +58,10 @@ bool LGraph::localize_frame(std::shared_ptr<Frame> frame)
     else
         status = localize_frame_pnp(frames[frames.size() - 2], frame);
 
-    // stream points to remote
+    // stream points and frame to the remote device
     if (status)
     {
-        std::vector<Eigen::Vector3d> points, colors;
-
-        networking::stream_points_camera(points, colors, frames.back(), stream_handle);
+        networking::stream_points_camera(current_frame_points, current_frame_point_colors, frames.back(), stream_handle);
     }
 
     return status;
@@ -193,6 +194,10 @@ void LGraph::create_landmarks_from_matches(const std::shared_ptr<Frame> ref_fram
 
         // <feature index, landmark index>
         frame->feature_landmark_lookup.push_back(std::make_pair(m.second, landmarks.size() - 1));
+
+        // these will be sent over the network to the remote device
+        current_frame_points.push_back(Eigen::Vector3d(new_p3d.x, new_p3d.y, new_p3d.z));
+        current_frame_point_colors.push_back(lm.color);
     }
 }
 
@@ -412,6 +417,10 @@ void LGraph::project_more_points(const std::shared_ptr<Frame> ref_frame, const s
         extra_3d_points_colors.push_back(Eigen::Vector3d((float)(col.val[2]) / 255.0, (float)(col.val[1]) / 255.0, (float)(col.val[0]) / 255.0));
 
         extra_3d_points_normals.push_back(frame->position - new_p3d);
+
+        // add to streamable points
+        current_frame_points.push_back(new_p3d);
+        current_frame_point_colors.push_back(extra_3d_points_colors.back());
 
         // debug_points.push_back(new_p3d);
         // debug_colors.push_back(Eigen::Vector3d((float)(col.val[2]) / 255.0, (float)(col.val[1]) / 255.0, (float)(col.val[0]) / 255.0));
