@@ -12,7 +12,7 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <fmt/format.h>
+// #include <fmt/format.h>
 #include <iostream>
 #include <memory>
 #include <opencv2/calib3d.hpp>
