@@ -95,6 +95,8 @@ int main()
 
 #ifdef USE_OPEN3D
    lgraph.visualize_camera_tracks(true, false);
+#else
+   lgraph.print_camera_tracks();
 #endif
 
    return 0;

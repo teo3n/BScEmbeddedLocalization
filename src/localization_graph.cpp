@@ -857,3 +857,11 @@ void LGraph::visualize_camera_tracks(const bool visualize_landmarks, bool genera
     open3d::visualization::DrawGeometries(debug_cameras, "track visualization", 1920, 1080);
 }
 #endif
+
+void LGraph::print_camera_tracks() const
+{
+    for (int ii = 0; ii < frames.size(); ii++)
+    {
+        std::cout << "frame " << ii << ": " << frames[ii]->position.transpose() << "\n";
+    }
+}

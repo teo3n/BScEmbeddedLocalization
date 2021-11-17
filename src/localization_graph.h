@@ -73,6 +73,11 @@ public:
     void visualize_camera_tracks(const bool visualize_landmarks = false, bool generate_mesh = false) const;
 #endif
 
+    /**
+     *  @brief A terminal friendly camera location print-out
+     */
+    void print_camera_tracks() const;
+
 private:
 
     /**
