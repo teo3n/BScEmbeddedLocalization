@@ -27,9 +27,9 @@ static const uint32_t STREAM_PORT = 1234;
 typedef Eigen::Matrix<double, 3, 4> Mat34;
 
 // specify the maximum number of features to be detected
-static const uint32_t ORB_FEATURE_COUNT = 3500;
+static const uint32_t ORB_FEATURE_COUNT = 10000;
 
-static const uint32_t ORB_FEATURE_COUNT_DENSE = 7000;
+static const uint32_t ORB_FEATURE_COUNT_DENSE = 10000;
 
 // specify the maximum distance the matches can have to be 
 // considered valid
