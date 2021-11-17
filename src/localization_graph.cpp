@@ -561,7 +561,7 @@ void LGraph::new_landmarks_standalone(const std::shared_ptr<Frame> frame, const 
     // DEBUG_visualize_matches(*ref_frame->rgb, *frame->rgb, matches, ref_frame->keypoints, frame->keypoints);
     // visualize_camera_tracks(true);
 
-    std::cout << "created new landmarks: " << matches.size() << "\n";
+    // std::cout << "created new landmarks: " << matches.size() << "\n";
 
     // create landmarks and add to feature_landmark_lookup
     create_landmarks_from_matches(ref_frame, frame, matches);

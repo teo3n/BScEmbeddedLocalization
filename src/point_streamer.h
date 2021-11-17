@@ -11,6 +11,7 @@
 
 #include <Eigen/Eigen>
 #include <boost/asio/buffer.hpp>
+#include <boost/asio/completion_condition.hpp>
 #include <boost/asio/detail/array_fwd.hpp>
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/ip/address.hpp>
@@ -49,32 +50,13 @@ namespace k3d::networking
 		const std::vector<Eigen::Vector3d>& colors, const std::shared_ptr<Frame> frame,
 		const StreamHandle& stream_handle)
 	{
-		std::cout << "stream points and frame data\n";
+		// std::cout << "stream points and frame data\n";
 
 		// cut the used data in half, no reason to transmit doubles when floats are "good enough"
 		std::vector<float> data_buffer;
 
 		// frame position (vec3), frame rotation (mat3x3), len of points, len of colors
-		data_buffer.reserve( + 3*3 + points.size() * 3 + colors.size() * 3);
-
-		// add rotation and position
-		{
-			data_buffer.push_back((float)frame->position.x());
-			data_buffer.push_back((float)frame->position.y());
-			data_buffer.push_back((float)frame->position.z());
-
-			data_buffer.push_back((float)frame->rotation(0, 0));
-			data_buffer.push_back((float)frame->rotation(0, 1));
-			data_buffer.push_back((float)frame->rotation(0, 2));
-
-			data_buffer.push_back((float)frame->rotation(1, 0));
-			data_buffer.push_back((float)frame->rotation(1, 1));
-			data_buffer.push_back((float)frame->rotation(1, 2));
-
-			data_buffer.push_back((float)frame->rotation(2, 0));
-			data_buffer.push_back((float)frame->rotation(2, 1));
-			data_buffer.push_back((float)frame->rotation(2, 2));
-		}
+		data_buffer.reserve(3 + 3*3 + points.size() * 3 + colors.size() * 3);
 
 		// add point position
 		for (int ii = 0; ii < points.size(); ii++)
@@ -96,19 +78,38 @@ namespace k3d::networking
 			data_buffer.push_back((float)c.z());
 		}
 
+		// add rotation and position
+		{
+			data_buffer.push_back((float)frame->position.x());
+			data_buffer.push_back((float)frame->position.y());
+			data_buffer.push_back((float)frame->position.z());
+
+			data_buffer.push_back((float)frame->rotation(0, 0));
+			data_buffer.push_back((float)frame->rotation(0, 1));
+			data_buffer.push_back((float)frame->rotation(0, 2));
+
+			data_buffer.push_back((float)frame->rotation(1, 0));
+			data_buffer.push_back((float)frame->rotation(1, 1));
+			data_buffer.push_back((float)frame->rotation(1, 2));
+
+			data_buffer.push_back((float)frame->rotation(2, 0));
+			data_buffer.push_back((float)frame->rotation(2, 1));
+			data_buffer.push_back((float)frame->rotation(2, 2));
+		}
+
 		auto send_buffer = boost::asio::buffer(data_buffer);
 
-		std::cout << "sending: " << send_buffer.size() << ", compared to " << data_buffer.size() << "\n";
+		std::cout << "sending " << send_buffer.size() << " bytes, compared to actual buffer size of " << data_buffer.size() << " values\n";
 
 		const uint32_t send_bytes = send_buffer.size();
 
 		boost::system::error_code err;
 
 		// transmit amount of bytes
-		boost::asio::write(*stream_handle.stream_socket, boost::asio::buffer({ send_bytes }), err);
+		boost::asio::write(*stream_handle.stream_socket, boost::asio::buffer({ send_bytes }), boost::asio::transfer_exactly(4), err);
 
 		// transmit the data
-		boost::asio::write(*stream_handle.stream_socket, send_buffer, err);
+		boost::asio::write(*stream_handle.stream_socket, send_buffer, boost::asio::transfer_exactly(send_buffer.size()), err);
 
 		if (err)
 		{

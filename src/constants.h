@@ -18,7 +18,7 @@ namespace k3d
 
 #define USE_FLANN
 #define USE_FLANN_ESSENTIAL
-#define IS_SERVER
+// #define IS_SERVER
 // #define USE_OPEN3D
 
 static const std::string STREAM_IP = "127.0.0.1";

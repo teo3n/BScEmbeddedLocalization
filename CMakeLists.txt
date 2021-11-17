@@ -38,8 +38,8 @@ find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 # add_compile_options(-Wno-deprecated-declarations)
 # add_compile_options(-Wno-unused-result)
 
-add_definitions(-g -fopenmp)
-# add_definitions(-O3)
+# add_definitions(-g -fopenmp)
+add_definitions(-O3)
 
 message(STATUS "Found Open3D ${Open3D_VERSION} ${Open3D_LIBRARY_DIRS}")
 

@@ -29,13 +29,15 @@
 #include "src/localization_graph.h"
 #include "src/point_receiver.h"
 
+#ifdef IS_SERVER
+   #include <Open3D/Open3D.h>
+   #include <Open3D/Geometry/PointCloud.h>
+   #include <Open3D/Visualization/Utility/DrawGeometry.h>
+   #include <Open3D/Geometry/Geometry.h>
+#endif
+
 
 using namespace k3d;
-
-/**
- *  TODO: 
- *            implement frame localization
- */
 
 
 int main()
@@ -48,14 +50,43 @@ int main()
 
       networking::StreamHandle stream_handle = networking::await_stream_connection(STREAM_PORT);
 
+      std::vector<Eigen::Vector3d> cloud_points, cloud_point_colors;
+      std::vector<Eigen::Matrix4d> camera_transforms;
 
       while (true)
       {
-            std::vector<Eigen::Vector3d> points, colors;
-            Eigen::Vector3d position;
-            Eigen::Matrix3d rotation;
+         std::vector<Eigen::Vector3d> points, colors;
+         Eigen::Vector3d position;
+         Eigen::Matrix3d rotation;
 
-            networking::receive_points_data(points, colors, position, rotation, stream_handle);
+         const bool finished = networking::receive_points_data(points, colors, position, rotation, stream_handle);
+
+
+         if (finished)
+         {
+            std::vector<std::shared_ptr<const open3d::geometry::Geometry>> visualize_geometries;
+
+            auto cloud = std::make_shared<open3d::geometry::PointCloud>(open3d::geometry::PointCloud(cloud_points));
+            cloud->colors_ = cloud_point_colors;
+            visualize_geometries.push_back(cloud);
+
+            for (auto c : camera_transforms)
+            {
+               std::shared_ptr<open3d::geometry::TriangleMesh> camera_mesh = std::make_shared<open3d::geometry::TriangleMesh>(open3d::geometry::TriangleMesh());
+               open3d::io::ReadTriangleMeshFromOBJ("../assets/debug_camera_mesh.obj", *camera_mesh, false);
+
+               camera_mesh->Transform(c);
+               visualize_geometries.push_back(camera_mesh);
+
+            }
+
+            open3d::visualization::DrawGeometries(visualize_geometries);
+         }
+
+         cloud_points.insert(cloud_points.end(), points.begin(), points.end());
+         cloud_point_colors.insert(cloud_point_colors.end(), colors.begin(), colors.end());
+
+         camera_transforms.push_back(utilities::compose_transform_Rt(rotation.transpose(), -rotation.transpose() * position));
       }
 
 #else
@@ -106,9 +137,9 @@ int main()
             Timer t;
 
             const std::shared_ptr<cv::Mat> frame = std::make_shared<cv::Mat>(cv::imread("../assets/rock/rgb_" + std::to_string(ii) + ".png"));
-            t.stop("read image");
+            // t.stop("read image");
             std::shared_ptr<Frame> ff = frame_from_rgb(frame, intr, dist);
-            t.stop("detect orb features: " + std::to_string(ff->keypoints.size()));
+            // t.stop("detect orb features: " + std::to_string(ff->keypoints.size()));
 
             if (!lgraph.localize_frame(ff))
                   fail_count++;
@@ -118,9 +149,7 @@ int main()
 
             times.push_back(t.lap_ms());
 
-            t.stop("localize frame " + std::to_string(ii));
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            // t.stop("localize frame " + std::to_string(ii));
       }
 
       for (auto t : times)

@@ -52,10 +52,13 @@ namespace k3d::networking
 
 		const float* recv_data = boost::asio::buffer_cast<const float*>(recv_buf.data());
 
-		std::cout << "received: " << recv_buf.size() << "\n";
+		std::cout << "received " << recv_buf.size() << " bytes out of " << num_bytes << " bytes wanted\n";
 
 		std::vector<float> data_buf (recv_buf.size(), 0);
-		std::copy(recv_data, recv_data + recv_buf.size(), data_buf.begin());
+		// std::memcpy(&data_buf[0], recv_data, recv_buf.size() * sizeof(float));
+		std::copy(recv_data, recv_data + recv_buf.size() / 4, data_buf.begin());
+
+		data_buf.shrink_to_fit();
 
 		return data_buf;
 	}
@@ -70,7 +73,7 @@ namespace k3d::networking
 		if (err)
 		{
 			std::cout << "failed to receive data size: " << err.message() << "\n";
-			return -1;
+			return 0;
 		}
 
 		const uint32_t* recv_data = boost::asio::buffer_cast<const uint32_t*>(recv_buf.data());
@@ -81,17 +84,63 @@ namespace k3d::networking
 	/**
 	 * 	@brief Streams a set of points and their respective point colors to
 	 * 		a remote host. If frame is not nullptr, streams the appropriate 
-	 * 		positional info as well
+	 * 		positional info as well.
+	 * 	@return If receiving is finished, determined by remote connection closed
 	 */
-	inline void receive_points_data(std::vector<Eigen::Vector3d>& points,
+	inline bool receive_points_data(std::vector<Eigen::Vector3d>& points,
 		std::vector<Eigen::Vector3d>& colors, Eigen::Vector3d& position, Eigen::Matrix3d& rotation,
 		const StreamHandle& stream_handle)
 	{
 		std::cout << "receiving...\n";
 
 		const uint32_t buf_size = receive_buffer_data_size(stream_handle);
-		const auto recv_data = receive_buffer(stream_handle, buf_size);
+		if (buf_size == 0)
+			return true;
 
+		const std::vector<float> recv_data = receive_buffer(stream_handle, buf_size);
+
+		// 3 for position, 3*3 for Mat3x3, points and colors -> / 2
+		const uint32_t points_raw_buf_size = ((buf_size / 4) - 3 - 3*3) / 2;
+
+		points.reserve(points_raw_buf_size / 3);
+		colors.reserve(points_raw_buf_size / 3);
+
+		// recover points and colors
+		for (int ii = 0; ii < points_raw_buf_size; ii += 3)
+		{
+			points.push_back(Eigen::Vector3d(
+				recv_data[ii + 0],
+				recv_data[ii + 1],
+				recv_data[ii + 2]));
+
+			colors.push_back(Eigen::Vector3d(
+				recv_data[points_raw_buf_size + ii + 0],
+				recv_data[points_raw_buf_size + ii + 1],
+				recv_data[points_raw_buf_size + ii + 2]));
+		}
+
+		std::cout << "first data entry: " << recv_data[0] << ", " << recv_data[1] << ", " << recv_data[2] << "\n";
+		std::cout << "points_raw_buf_size: " << points_raw_buf_size << "\n";
+
+		// recover the position
+		position.x() = recv_data[points_raw_buf_size * 2 + 0];
+		position.y() = recv_data[points_raw_buf_size * 2 + 1];
+		position.z() = recv_data[points_raw_buf_size * 2 + 2];
+
+		// recover the rotation matrix
+		rotation(0, 0) = recv_data[points_raw_buf_size * 2 + 3 + 0];
+		rotation(0, 1) = recv_data[points_raw_buf_size * 2 + 3 + 1];
+		rotation(0, 2) = recv_data[points_raw_buf_size * 2 + 3 + 2];
+
+		rotation(1, 0) = recv_data[points_raw_buf_size * 2 + 3 + 3];
+		rotation(1, 1) = recv_data[points_raw_buf_size * 2 + 3 + 4];
+		rotation(1, 2) = recv_data[points_raw_buf_size * 2 + 3 + 5];
+
+		rotation(2, 0) = recv_data[points_raw_buf_size * 2 + 3 + 6];
+		rotation(2, 1) = recv_data[points_raw_buf_size * 2 + 3 + 7];
+		rotation(2, 2) = recv_data[points_raw_buf_size * 2 + 3 + 8];
+
+		return false;
 	}
 
 	/**
