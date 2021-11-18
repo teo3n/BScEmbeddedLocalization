@@ -19,7 +19,8 @@ namespace k3d
 #define USE_FLANN
 #define USE_FLANN_ESSENTIAL
 // #define IS_SERVER
-// #define USE_OPEN3D
+// #define TRANSMIT_POSES
+#define USE_OPEN3D
 
 static const std::string STREAM_IP = "127.0.0.1";
 static const uint32_t STREAM_PORT = 1234;
@@ -29,7 +30,7 @@ typedef Eigen::Matrix<double, 3, 4> Mat34;
 // specify the maximum number of features to be detected
 static const uint32_t ORB_FEATURE_COUNT = 10000;
 
-static const uint32_t ORB_FEATURE_COUNT_DENSE = 10000;
+static const uint32_t ORB_FEATURE_COUNT_DENSE = 25000;
 
 // specify the maximum distance the matches can have to be 
 // considered valid

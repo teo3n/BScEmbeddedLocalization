@@ -9,6 +9,7 @@
     #include <Open3D/Geometry/TriangleMesh.h>
     #include <Open3D/Visualization/Utility/DrawGeometry.h>
     #include <Open3D/IO/ClassIO/TriangleMeshIO.h>
+    #include <Open3D/IO/ClassIO/PointCloudIO.h>
 #endif
 
 #include <algorithm>
@@ -30,8 +31,10 @@
 
 using namespace k3d;
 
-LGraph::LGraph() :
-    stream_handle(networking::acquire_stream_handle(STREAM_IP, STREAM_PORT))
+LGraph::LGraph()
+#ifdef TRANSMIT_POSES
+    : stream_handle(networking::acquire_stream_handle(STREAM_IP, STREAM_PORT))
+#endif
 {
     // double identity_vec[3*3] = { 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 };
     // identity_mat = utilities::restrucure_mat<double>(identity_vec, 3, 3);
@@ -61,7 +64,9 @@ bool LGraph::localize_frame(std::shared_ptr<Frame> frame)
     // stream points and frame to the remote device
     if (status)
     {
+        #ifdef TRANSMIT_POSES
         networking::stream_points_camera(current_frame_points, current_frame_point_colors, frames.back(), stream_handle);
+        #endif
     }
 
     return status;
@@ -875,6 +880,9 @@ void LGraph::visualize_camera_tracks(const bool visualize_landmarks, bool genera
             auto extra_cloud = std::make_shared<open3d::geometry::PointCloud>(open3d::geometry::PointCloud(extra_3d_points));
             extra_cloud->colors_ = extra_3d_points_colors;
             extra_cloud->normals_ = extra_3d_points_normals;
+            *extra_cloud += *lms_cloud;
+
+            // open3d::io::WritePointCloudToPLY("export_cloud.ply", *extra_cloud);
 
             // debug_cameras.push_back(extra_cloud);
         }
