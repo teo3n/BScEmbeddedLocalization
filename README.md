@@ -1,4 +1,4 @@
-# kandi3d
+# BSc Embedded Localization
 
 ```
 cd build
